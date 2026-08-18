@@ -367,6 +367,12 @@ function applyRolePermissions() {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('hidden', role !== 'admin_gap' && role !== 'auditor' && role !== 'operador_om');
     });
+
+    const canExportAudit = role === 'admin_gap';
+    const csvBtn = document.getElementById('audit-export-csv');
+    const jsonBtn = document.getElementById('audit-export-json');
+    if (csvBtn) csvBtn.classList.toggle('hidden', !canExportAudit);
+    if (jsonBtn) jsonBtn.classList.toggle('hidden', !canExportAudit);
 }
 
 // ============ VIEW MANAGEMENT ============
@@ -2618,6 +2624,82 @@ async function loadStations() {
 // ============ AUDIT ============
 
 let auditCurrentPage = 1;
+let auditCurrentTab = 'all';
+let auditSeverityFilter = 'all';
+let auditRows = [];
+
+function getAuditSeverity(event) {
+    const action = String(event?.action || '').toUpperCase();
+    if (action.includes('FAILED') || action.includes('DELETE') || action.includes('RESET') || action.includes('DEACTIVATE')) return 'critical';
+    if (action.includes('CREATE') || action.includes('UPDATE') || action.includes('UPLOAD') || action.includes('GENERATE') || action.includes('SYNC') || action.includes('ACTIVATE')) return 'important';
+    return 'informative';
+}
+
+function getAuditSeverityLabel(level) {
+    const map = {
+        critical: 'Crítico',
+        important: 'Importante',
+        informative: 'Informativo'
+    };
+    return map[level] || 'Informativo';
+}
+
+function getAuditSeverityClass(level) {
+    const map = {
+        critical: 'badge-danger',
+        important: 'badge-warning',
+        informative: 'badge-info'
+    };
+    return map[level] || 'badge-info';
+}
+
+function getAuditCategory(event) {
+    const entity = String(event?.entity || '').toLowerCase();
+    const action = String(event?.action || '').toUpperCase();
+
+    if (['login', 'logout', 'login_failed'].includes(action.toLowerCase()) || entity === 'users' && (action.includes('LOGIN') || action.includes('LOGOUT'))) return 'auth';
+    if (entity === 'organizations') return 'organizations';
+    if (entity === 'users') return 'users';
+    if (['scripts', 'script_versions', 'om_script_versions'].includes(entity)) return 'scripts';
+    if (entity === 'bundles' || action.includes('GENERATE') || action.includes('BUNDLE')) return 'bundles';
+    if (['wallpaper', 'logo', 'gallery-image', 'asset'].includes(entity)) return 'assets';
+    if (['variables', 'variable_definitions', 'config', 'settings'].includes(entity)) return 'settings';
+    if (action.includes('LOGIN') || action.includes('LOGOUT')) return 'auth';
+    return 'all';
+}
+
+function summarizeAuditDetails(event) {
+    const details = event?.details;
+    if (!details) return '-';
+
+    if (typeof details === 'string') {
+        try {
+            const parsed = JSON.parse(details);
+            if (parsed && typeof parsed === 'object') return JSON.stringify(parsed).slice(0, 140);
+        } catch (e) {
+            return details.slice(0, 140);
+        }
+        return details.slice(0, 140);
+    }
+
+    if (typeof details === 'object') {
+        const compact = JSON.stringify(details).slice(0, 140);
+        return compact === '{}' ? '-' : compact;
+    }
+
+    return String(details).slice(0, 140);
+}
+
+function applyAuditFilters(rows) {
+    const selectedTab = auditCurrentTab;
+    const severity = auditSeverityFilter;
+
+    return rows.filter((event) => {
+        const categoryMatches = selectedTab === 'all' || getAuditCategory(event) === selectedTab;
+        const severityMatches = severity === 'all' || getAuditSeverity(event) === severity;
+        return categoryMatches && severityMatches;
+    });
+}
 
 async function loadAuditEvents() {
     const params = { page: auditCurrentPage, limit: 20 };
@@ -2626,37 +2708,57 @@ async function loadAuditEvents() {
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
 
-    const res = await API.get('audit', params);
-    if (!res.success) { Toast.error(res.error || 'Erro ao carregar auditoria'); return; }
+    try {
+        const res = await API.get('audit', params);
+        if (!res.success) {
+            Toast.error(res.error || 'Erro ao carregar auditoria');
+            return;
+        }
 
-    const payload = res.data && typeof res.data === 'object' ? res.data : {};
-    const events = Array.isArray(payload.events) ? payload.events : [];
-    const pagination = payload.pagination || { total: 0, page: 1, pages: 1 };
+        const payload = res.data && typeof res.data === 'object' ? res.data : {};
+        const events = Array.isArray(payload.events) ? payload.events : Array.isArray(res.data) ? res.data : [];
+        const pagination = payload.pagination || { total: 0, page: 1, pages: 1 };
+        auditRows = events;
 
-    const el = document.getElementById('audit-tbody');
-    if (!el) return;
+        const filtered = applyAuditFilters(auditRows);
+        const el = document.getElementById('audit-tbody');
+        if (!el) return;
 
-    el.innerHTML = events.length ? events.map(e => `
-        <tr>
-            <td class="px-4 py-3">${Utils.formatDate(e.created_at)}</td>
-            <td class="px-4 py-3">${Utils.escapeHtml(e.full_name || e.username || '-')}</td>
-            <td class="px-4 py-3"><span class="badge badge-info">${Utils.escapeHtml(e.action)}</span></td>
-            <td class="px-4 py-3">${Utils.escapeHtml(e.entity)}</td>
-            <td class="px-4 py-3">${Utils.escapeHtml(e.org_acronym || '-')}</td>
-            <td class="px-4 py-3 text-slate-400 text-sm">${Utils.escapeHtml(e.details || '-')}</td>
-        </tr>
-    `).join('') : '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Nenhum evento de auditoria encontrado</td></tr>';
+        if (!filtered.length) {
+            el.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nenhum evento registrado</td></tr>';
+        } else {
+            el.innerHTML = filtered.map(event => {
+                const level = getAuditSeverity(event);
+                return `
+                    <tr>
+                        <td class="px-4 py-3">${Utils.formatDate(event.created_at)}</td>
+                        <td class="px-4 py-3"><span class="badge ${getAuditSeverityClass(level)}">${Utils.escapeHtml(getAuditSeverityLabel(level))}</span></td>
+                        <td class="px-4 py-3">${Utils.escapeHtml(event.full_name || event.username || '-')}</td>
+                        <td class="px-4 py-3">${Utils.escapeHtml(event.org_acronym || '-')}</td>
+                        <td class="px-4 py-3"><span class="badge badge-info">${Utils.escapeHtml(event.action || '-')}</span></td>
+                        <td class="px-4 py-3">${Utils.escapeHtml(event.entity || '-')}</td>
+                        <td class="px-4 py-3 text-slate-400 text-sm">${Utils.escapeHtml(summarizeAuditDetails(event))}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
 
-    const infoEl = document.getElementById('audit-info');
-    if (infoEl) infoEl.textContent = `${pagination.total} evento(s)`;
+        const infoEl = document.getElementById('audit-info');
+        if (infoEl) infoEl.textContent = `${pagination.total} evento(s)`;
 
-    const pageInfoEl = document.getElementById('audit-page-info');
-    if (pageInfoEl) pageInfoEl.textContent = `Pagina ${pagination.page} de ${pagination.pages}`;
+        const pageInfoEl = document.getElementById('audit-page-info');
+        if (pageInfoEl) pageInfoEl.textContent = `Pagina ${pagination.page} de ${pagination.pages}`;
 
-    const prevBtn = document.getElementById('audit-prev');
-    const nextBtn = document.getElementById('audit-next');
-    if (prevBtn) prevBtn.disabled = pagination.page <= 1;
-    if (nextBtn) nextBtn.disabled = pagination.page >= pagination.pages;
+        const prevBtn = document.getElementById('audit-prev');
+        const nextBtn = document.getElementById('audit-next');
+        if (prevBtn) prevBtn.disabled = pagination.page <= 1;
+        if (nextBtn) nextBtn.disabled = pagination.page >= pagination.pages;
+    } catch (error) {
+        console.error('Erro ao carregar auditoria:', error);
+        Toast.error(error?.message || 'Erro de rede ao carregar auditoria');
+        const el = document.getElementById('audit-tbody');
+        if (el) el.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Erro ao carregar eventos</td></tr>';
+    }
 }
 window.loadAuditEvents = loadAuditEvents;
 
@@ -2667,6 +2769,58 @@ function auditChangePage(delta) {
     loadAuditEvents();
 }
 window.auditChangePage = auditChangePage;
+
+function exportAuditCsv() {
+    const rows = applyAuditFilters(auditRows);
+    if (!rows.length) {
+        Toast.warning('Nenhum evento para exportar.');
+        return;
+    }
+
+    const header = ['Data/Hora', 'Severidade', 'Usuario', 'OM', 'Acao', 'Entidade', 'Descricao'];
+    const csvRows = [header.join(',')].concat(rows.map(event => {
+        const values = [
+            event.created_at || '',
+            getAuditSeverityLabel(getAuditSeverity(event)),
+            event.full_name || event.username || '',
+            event.org_acronym || '',
+            event.action || '',
+            event.entity || '',
+            summarizeAuditDetails(event).replace(/\r?\n/g, ' ')
+        ];
+        return values.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+    }));
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'audit_events.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+window.exportAuditCsv = exportAuditCsv;
+
+function exportAuditJson() {
+    const rows = applyAuditFilters(auditRows);
+    if (!rows.length) {
+        Toast.warning('Nenhum evento para exportar.');
+        return;
+    }
+
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'audit_events.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+window.exportAuditJson = exportAuditJson;
 
 // ============ ORG CRUD ============
 
@@ -2789,6 +2943,26 @@ function setupEventListeners() {
         document.getElementById('user-edit-id').value = '';
         document.getElementById('modal-user-title').textContent = 'Novo Usuario';
         openModal('modal-user');
+    });
+
+    document.querySelectorAll('.audit-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.audit-tab').forEach((item) => {
+                const isActive = item === tab;
+                item.classList.toggle('btn-primary', isActive);
+                item.classList.toggle('btn-secondary', !isActive);
+            });
+            auditCurrentTab = tab.dataset.auditTab || 'all';
+            auditCurrentPage = 1;
+            loadAuditEvents();
+        });
+    });
+
+    const severitySelect = document.getElementById('audit-severity-filter');
+    severitySelect?.addEventListener('change', (event) => {
+        auditSeverityFilter = event.target.value || 'all';
+        auditCurrentPage = 1;
+        loadAuditEvents();
     });
 
     document.getElementById('var-search')?.addEventListener('input', Utils.debounce(() => {

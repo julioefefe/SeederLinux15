@@ -376,9 +376,33 @@
                 <!-- Audit View -->
                 <div id="view-audit" class="hidden">
                     <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">Log de Auditoria</h3>
-                            <div class="flex gap-2">
+                        <div class="card-header" style="display:block;">
+                            <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+                                <h3 class="card-title">Log de Auditoria</h3>
+                                <div class="flex gap-2">
+                                    <button id="audit-export-csv" class="btn btn-secondary btn-sm hidden" onclick="exportAuditCsv()">Exportar CSV</button>
+                                    <button id="audit-export-json" class="btn btn-secondary btn-sm hidden" onclick="exportAuditJson()">Exportar JSON</button>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 flex-wrap items-center mb-3">
+                                <div id="audit-tab-group" class="flex gap-2 flex-wrap">
+                                    <button class="btn btn-sm btn-primary audit-tab active" data-audit-tab="all" type="button">Todos</button>
+                                    <button class="btn btn-sm btn-secondary audit-tab" data-audit-tab="auth" type="button">Autenticação</button>
+                                    <button class="btn btn-sm btn-secondary audit-tab" data-audit-tab="organizations" type="button">Organizações</button>
+                                    <button class="btn btn-sm btn-secondary audit-tab" data-audit-tab="users" type="button">Usuários</button>
+                                    <button class="btn btn-sm btn-secondary audit-tab" data-audit-tab="scripts" type="button">Scripts Core</button>
+                                    <button class="btn btn-sm btn-secondary audit-tab" data-audit-tab="bundles" type="button">Bundles</button>
+                                    <button class="btn btn-sm btn-secondary audit-tab" data-audit-tab="assets" type="button">Assets/Galeria</button>
+                                    <button class="btn btn-sm btn-secondary audit-tab" data-audit-tab="settings" type="button">Configurações</button>
+                                </div>
+                                <select id="audit-severity-filter" class="form-input" style="width: 180px;">
+                                    <option value="all">Todas as severidades</option>
+                                    <option value="critical">Crítico</option>
+                                    <option value="important">Importante</option>
+                                    <option value="informative">Informativo</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2 flex-wrap">
                                 <input type="date" id="audit-start-date" class="form-input" style="width: 150px;">
                                 <input type="date" id="audit-end-date" class="form-input" style="width: 150px;">
                                 <button onclick="loadAuditEvents()" class="btn btn-secondary btn-sm">Filtrar</button>
@@ -387,12 +411,13 @@
                         <div class="card-body table-wrapper">
                             <table>
                                 <thead><tr>
-                                    <th>Data</th>
-                                    <th>Usuario</th>
-                                    <th>Acao</th>
-                                    <th>Entidade</th>
+                                    <th>Data/Hora</th>
+                                    <th>Severidade</th>
+                                    <th>Usuário</th>
                                     <th>OM</th>
-                                    <th>Detalhes</th>
+                                    <th>Ação</th>
+                                    <th>Entidade</th>
+                                    <th>Descrição resumida</th>
                                 </tr></thead>
                                 <tbody id="audit-tbody"></tbody>
                             </table>

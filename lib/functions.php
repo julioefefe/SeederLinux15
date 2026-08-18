@@ -96,11 +96,22 @@ function log_audit($action, $entity, $entityId = null, $details = null) {
     $orgId = $_SESSION['organization_id'] ?? null;
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
 
-    Database::execute(
-        "INSERT INTO audit_events (user_id, organization_id, action, entity, entity_id, details, ip_address, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
-        [$userId, $orgId, $action, $entity, $entityId, $details ? json_encode($details) : null, $ip]
-    );
+    try {
+        $normalizedEntityId = $entityId !== null && $entityId !== '' ? (int)$entityId : null;
+        $payload = $details !== null ? json_encode($details) : null;
+        if ($payload === false) {
+            $payload = null;
+            error_log('log_audit: falha ao serializar detalhes para action=' . $action . ' entity=' . $entity);
+        }
+
+        Database::execute(
+            "INSERT INTO audit_events (user_id, organization_id, action, entity, entity_id, details, ip_address, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())",
+            [$userId, $orgId, $action, $entity, $normalizedEntityId, $payload, $ip]
+        );
+    } catch (Throwable $e) {
+        error_log('log_audit failed: ' . $e->getMessage() . ' | action=' . $action . ' | entity=' . $entity);
+    }
 }
 
 /**
