@@ -1057,6 +1057,12 @@ function handleSaveScriptGapVersion($input) {
     $script = Database::fetchOne('SELECT id, filename FROM scripts WHERE id = ? AND is_core = TRUE', [$scriptId]);
     if (!$script) jsonError('Script core nao encontrado', 404);
 
+    // Capture factory version from scripts.content BEFORE overwriting it.
+    // ensureFactoryVersionForScript creates a factory version from scripts.content
+    // if none exists yet. If we don't call this before the UPDATE below, the
+    // factory version would be created from the modified content.
+    ensureFactoryVersionForScript($scriptId);
+
     Database::execute(
         "UPDATE script_versions SET is_active = false WHERE script_id = ? AND version_type = 'gap_default'",
         [$scriptId]
@@ -1439,6 +1445,9 @@ function handleCreateScriptVersion($input) {
     $versionName = $script['filename'] . ' - ' . ($scope === 'gap_default' ? 'GAP Default' : 'OM Especifica') . ' v' . $nextVersion;
 
     if ($scope === 'gap_default') {
+        // Capture factory version from scripts.content BEFORE overwriting it.
+        ensureFactoryVersionForScript($scriptId);
+
         Database::execute(
             "UPDATE script_versions SET is_active = false WHERE script_id = ? AND version_type = 'gap_default'",
             [$scriptId]

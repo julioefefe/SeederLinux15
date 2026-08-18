@@ -1731,12 +1731,14 @@ window.resetScriptToFactory = resetScriptToFactory;
 function getOrgScriptBadgeMeta(script) {
     const badgeClassBySource = {
         factory: 'badge-secondary',
+        gap_default: 'badge-warning',
         global: 'badge-warning',
         local: 'badge-success'
     };
     const badgeLabelBySource = {
         factory: 'Fábrica',
-        global: 'Global',
+        gap_default: 'GAP Default',
+        global: 'GAP Default',
         local: 'Local'
     };
 
@@ -2083,7 +2085,7 @@ async function showOrgReorderModal() {
                 <span class="order-number">${Number(script.execution_order || index + 1)}</span>
                 <span class="script-name">${Utils.escapeHtml(script.name || script.filename || 'Script')}</span>
                 <span class="text-slate-500 text-xs font-mono">${Utils.escapeHtml(script.filename || '')}</span>
-                <span class="script-badge ${script.source_type === 'local' ? 'core' : script.source_type === 'global' ? 'warning' : 'secondary'}">${Utils.escapeHtml(getOrgScriptBadgeMeta(script).label)}</span>
+                <span class="script-badge ${script.source_type === 'local' ? 'core' : (script.source_type === 'gap_default' || script.source_type === 'global') ? 'warning' : 'secondary'}">${Utils.escapeHtml(getOrgScriptBadgeMeta(script).label)}</span>
             </div>
         `).join('');
 
