@@ -2175,7 +2175,7 @@ function handleGetAuditEvents() {
         $startDate = sanitizeInput($_GET['start_date'] ?? '');
         $endDate = sanitizeInput($_GET['end_date'] ?? '');
         $entityType = sanitizeInput($_GET['entity_type'] ?? '');
-        $actionFilter = sanitizeInput($_GET['action'] ?? '');
+        $actionFilter = sanitizeInput($_GET['action_filter'] ?? '');
 
         $where = "1=1";
         $params = [];
