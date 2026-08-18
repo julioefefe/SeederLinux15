@@ -1015,7 +1015,7 @@ function handleGetOrgScripts($orgId) {
             $effectiveOrder = (int)($local['execution_order'] ?? $effectiveOrder);
             $effectiveIsActive = true;
         } elseif ($gapDefault) {
-            $sourceType = 'global';
+            $sourceType = 'gap_default';
             $effectiveContent = $gapDefault['content'] ?? $effectiveContent;
             $effectiveOrder = (int)($script['execution_order'] ?? 0);
             $effectiveIsActive = true;
@@ -1653,8 +1653,12 @@ function handleGenerateBundle($input) {
     }
     
     // Sanitizar URLs, NTP e prefixar imagens antes de exportar
+    // $baseUrl vem do SEEDER_SERVER configurado pela OM; fallback apenas se vazio/invalido
     $sigla = strtolower($org['acronym'] ?? '');
-    $baseUrl = "https://seederlinux.$sigla.intraer";
+    $fallbackBaseUrl = "https://seederlinux.$sigla.intraer";
+    if (empty($baseUrl) || strpos($baseUrl, 'om.local') !== false || strpos($baseUrl, 'softwarelivre') !== false) {
+        $baseUrl = $fallbackBaseUrl;
+    }
 
     foreach ($vars as &$v) {
         $name = $v['name'] ?? '';
@@ -1853,8 +1857,13 @@ function handleGenerateBundle($input) {
 
 function handleDownloadBundle($id) {
     requireAuth();
-    $bundle = Database::fetchOne("SELECT id, filename, content FROM deploy_bundles WHERE id = ?", [$id]);
+    $bundle = Database::fetchOne("SELECT id, organization_id, filename, content FROM deploy_bundles WHERE id = ?", [$id]);
     if (!$bundle) jsonError('Bundle nao encontrado', 404);
+
+    $userOrgId = getUserOrgId();
+    if ($userOrgId !== null && !isAdminGap() && (int)$bundle['organization_id'] !== $userOrgId) {
+        jsonError('Sem permissao', 403);
+    }
 
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . $bundle['filename'] . '"');
@@ -2157,7 +2166,7 @@ function handleGetAuditEvents() {
         $startDate = sanitizeInput($_GET['start_date'] ?? '');
         $endDate = sanitizeInput($_GET['end_date'] ?? '');
         $entityType = sanitizeInput($_GET['entity_type'] ?? '');
-        $action = sanitizeInput($_GET['action'] ?? '');
+        $actionFilter = sanitizeInput($_GET['action'] ?? '');
 
         $where = "1=1";
         $params = [];
@@ -2187,9 +2196,9 @@ function handleGetAuditEvents() {
             $where .= " AND a.entity = ?";
             $params[] = $entityType;
         }
-        if ($action) {
+        if ($actionFilter) {
             $where .= " AND a.action = ?";
-            $params[] = $action;
+            $params[] = $actionFilter;
         }
 
         // Contar total de eventos
@@ -2638,13 +2647,11 @@ function handleToggleBundleActive($input) {
     // Usar boolean real em vez de string 'true'/'false'
     $currentStatus = (bool)($bundle['is_active'] ?? false);
     $newStatus = !$currentStatus;
-    
-    // Executar update com boolean
-    $pdo = new PDO('pgsql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME, DB_USER, DB_PASS);
-    $stmt = $pdo->prepare("UPDATE deploy_bundles SET is_active = ? WHERE id = ?");
-    $stmt->bindValue(1, $newStatus, PDO::PARAM_BOOL);
-    $stmt->bindValue(2, $bundleId, PDO::PARAM_INT);
-    $stmt->execute();
+
+    Database::execute(
+        "UPDATE deploy_bundles SET is_active = ? WHERE id = ?",
+        [$newStatus ? 'true' : 'false', $bundleId]
+    );
 
     log_audit($newStatus ? 'ACTIVATE' : 'DEACTIVATE', 'bundles', $bundleId, []);
     jsonSuccess(null, $newStatus ? 'Bundle ativado' : 'Bundle desativado');
