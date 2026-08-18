@@ -752,6 +752,21 @@ function handleUpdateVariables($input) {
     }
 
     try {
+        $organization = Database::fetchOne(
+            "SELECT acronym FROM organizations WHERE id = ?",
+            [$orgId]
+        );
+        $variableIds = array_map('intval', array_keys($variables));
+        $changedVariables = [];
+        if ($variableIds) {
+            $placeholders = implode(',', array_fill(0, count($variableIds), '?'));
+            $definitions = Database::fetchAll(
+                "SELECT id, name FROM variable_definitions WHERE id IN ({$placeholders}) ORDER BY name",
+                $variableIds
+            );
+            $changedVariables = array_column($definitions, 'name');
+        }
+
         foreach ($variables as $varId => $value) {
             Database::execute(
                 "UPDATE organization_variables SET value = ?, updated_at = CURRENT_TIMESTAMP
@@ -760,7 +775,14 @@ function handleUpdateVariables($input) {
             );
         }
 
-        log_audit('UPDATE', 'variables', null, ['organization_id' => $orgId, 'count' => count($variables)]);
+        log_audit('UPDATE', 'variables', null, [
+            'organization_id' => $orgId,
+            'organization_acronym' => $organization['acronym'] ?? null,
+            'count' => count($variables),
+            'changed_variables' => $changedVariables,
+            'username' => $_SESSION['username'] ?? 'system',
+            'full_name' => $_SESSION['full_name'] ?? null
+        ], $orgId);
         bumpOrgSerial($orgId);
         jsonSuccess(null, 'Variaveis salvas com sucesso');
     } catch (PDOException $e) {

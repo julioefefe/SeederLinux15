@@ -148,6 +148,13 @@ function buildAuditSummary($action, $entity, $details = null) {
         return "Geração de bundle{$orgText}{$scriptCount}";
     }
 
+    if ($entity === 'variables' && $action === 'UPDATE') {
+        $orgText = $organization ? " da OM {$organization}" : '';
+        $changed = $details['changed_variables'] ?? [];
+        $variableText = is_array($changed) && $changed ? ': ' . implode(', ', $changed) : '';
+        return "Alteração de variáveis{$orgText}{$variableText}";
+    }
+
     $labels = [
         'CREATE' => 'Criação', 'UPDATE' => 'Alteração', 'DELETE' => 'Exclusão',
         'UPLOAD' => 'Upload', 'GENERATE' => 'Geração', 'ACTIVATE' => 'Ativação',
@@ -156,9 +163,9 @@ function buildAuditSummary($action, $entity, $details = null) {
     return ($labels[$action] ?? ucfirst(strtolower($action))) . " em {$entity}";
 }
 
-function log_audit($action, $entity, $entityId = null, $details = null) {
+function log_audit($action, $entity, $entityId = null, $details = null, $organizationId = null) {
     $userId = $_SESSION['user_id'] ?? null;
-    $orgId = $_SESSION['organization_id'] ?? null;
+    $orgId = $organizationId ?? ($_SESSION['organization_id'] ?? null);
     $ip = $_SERVER['REMOTE_ADDR'] ?? null;
 
     try {
