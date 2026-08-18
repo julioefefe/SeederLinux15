@@ -2737,7 +2737,7 @@ async function loadAuditEvents() {
                         <td class="px-4 py-3">${Utils.escapeHtml(event.org_acronym || '-')}</td>
                         <td class="px-4 py-3"><span class="badge badge-info">${Utils.escapeHtml(event.action || '-')}</span></td>
                         <td class="px-4 py-3">${Utils.escapeHtml(event.entity || '-')}</td>
-                        <td class="px-4 py-3 text-slate-400 text-sm">${Utils.escapeHtml(summarizeAuditDetails(event))}</td>
+                        <td class="px-4 py-3 text-slate-400 text-sm">${Utils.escapeHtml(event.summary || summarizeAuditDetails(event))}</td>
                     </tr>
                 `;
             }).join('');

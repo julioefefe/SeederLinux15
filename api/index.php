@@ -385,6 +385,7 @@ function handleLogin($input) {
         $_SESSION['username'] = $user['username'];
         $_SESSION['role'] = $user['role'];
         $_SESSION['organization_id'] = $user['organization_id'];
+        $_SESSION['full_name'] = $user['full_name'];
 
         $token = bin2hex(random_bytes(32));
         $tokenHash = password_hash($token, PASSWORD_DEFAULT);
@@ -395,7 +396,11 @@ function handleLogin($input) {
 
         $org = $user['organization_id'] ? Database::fetchOne("SELECT id, acronym, name, domain FROM organizations WHERE id = ?", [$user['organization_id']]) : null;
 
-        log_audit('LOGIN', 'users', $user['id'], ['username' => $username]);
+        log_audit('LOGIN', 'users', $user['id'], [
+            'username' => $username,
+            'full_name' => $user['full_name'],
+            'organization_acronym' => $org['acronym'] ?? null
+        ]);
 
         jsonSuccess([
             'id' => $user['id'],
@@ -422,7 +427,10 @@ function handleLogin($input) {
 
 function handleLogout() {
     $userId = $_SESSION['user_id'] ?? null;
-    log_audit('LOGOUT', 'users', $userId);
+    log_audit('LOGOUT', 'users', $userId, [
+        'username' => $_SESSION['username'] ?? 'sistema',
+        'full_name' => $_SESSION['full_name'] ?? null
+    ]);
     if ($userId) {
         Database::execute("DELETE FROM user_tokens WHERE user_id = ?", [$userId]);
     }
@@ -1054,7 +1062,7 @@ function handleSaveScriptGapVersion($input) {
 
     if (!$scriptId || empty($content)) jsonError('script_id e content obrigatorios', 400);
 
-    $script = Database::fetchOne('SELECT id, filename FROM scripts WHERE id = ? AND is_core = TRUE', [$scriptId]);
+    $script = Database::fetchOne('SELECT id, name, filename FROM scripts WHERE id = ? AND is_core = TRUE', [$scriptId]);
     if (!$script) jsonError('Script core nao encontrado', 404);
 
     // Capture factory version from scripts.content BEFORE overwriting it.
@@ -1089,10 +1097,15 @@ function handleSaveScriptGapVersion($input) {
 
     log_audit('UPDATE', 'script_versions', $scriptId, [
         'action' => 'save_gap_default',
+        'script_name' => $script['name'] ?? $script['filename'],
+        'filename' => $script['filename'],
+        'new_version' => $nextVersion,
         'version' => $nextVersion,
         'scope' => 'gap_default',
         'script_id' => $scriptId,
-        'author' => $_SESSION['username'] ?? 'system'
+        'author' => $_SESSION['username'] ?? 'system',
+        'username' => $_SESSION['username'] ?? 'system',
+        'full_name' => $_SESSION['full_name'] ?? null
     ]);
 
     jsonSuccess(['version_id' => $newVersionId, 'version_number' => $nextVersion], 'Versao GAP salva com sucesso');
@@ -1843,7 +1856,13 @@ function handleGenerateBundle($input) {
 
     bumpOrgSerial($orgId);
 
-        log_audit('GENERATE', 'bundles', $bundleId, ['organization' => $org['acronym'], 'scripts' => count($scripts)]);
+        log_audit('GENERATE', 'bundles', $bundleId, [
+            'organization' => $org['acronym'],
+            'organization_acronym' => $org['acronym'],
+            'scripts' => count($scripts),
+            'username' => $_SESSION['username'] ?? 'system',
+            'full_name' => $_SESSION['full_name'] ?? null
+        ]);
         log_event("Bundle gerado: {$org['acronym']} (id=$bundleId, scripts=" . count($scripts) . ")", 'INFO');
 
         jsonSuccess([
@@ -1957,7 +1976,12 @@ function handleUpdateUser($id, $input) {
         );
     }
 
-    log_audit('UPDATE', 'users', $id, ['username' => $username]);
+    log_audit('UPDATE', 'users', $id, [
+        'username' => $username,
+        'full_name' => $fullName,
+        'password_changed' => (bool)$password,
+        'author' => $_SESSION['username'] ?? 'system'
+    ]);
     jsonSuccess(null, 'Usuario atualizado');
 }
 
@@ -2227,6 +2251,11 @@ function handleGetAuditEvents() {
              LIMIT ? OFFSET ?",
             array_merge($params, [$limit, $offset])
         );
+
+        foreach ($events as &$event) {
+            $event['summary'] = buildAuditSummary($event['action'], $event['entity'], $event['details']);
+        }
+        unset($event);
 
         $metadata = [
             'total' => $total,

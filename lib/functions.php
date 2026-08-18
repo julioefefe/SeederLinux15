@@ -25,7 +25,7 @@ function requireAuth() {
     if (preg_match('/Bearer\s+(.+)/', $authHeader, $matches)) {
         $token = trim($matches[1]);
         $tokens = Database::fetchAll(
-            "SELECT ut.user_id, ut.token_hash, u.role, u.organization_id, u.username
+            "SELECT ut.user_id, ut.token_hash, u.role, u.organization_id, u.username, u.full_name
              FROM user_tokens ut
              JOIN users u ON u.id = ut.user_id
              WHERE ut.expires_at > NOW()"
@@ -37,6 +37,7 @@ function requireAuth() {
                 $_SESSION['username'] = $t['username'];
                 $_SESSION['role'] = $t['role'];
                 $_SESSION['organization_id'] = $t['organization_id'];
+                $_SESSION['full_name'] = $t['full_name'];
                 return;
             }
         }
@@ -99,6 +100,60 @@ function getCurrentUser() {
 
 function log_event($msg, $level = 'INFO') {
     error_log("[$level] " . date('Y-m-d H:i:s') . " - $msg");
+}
+
+function buildAuditSummary($action, $entity, $details = null) {
+    if (is_string($details)) {
+        $decoded = json_decode($details, true);
+        $details = is_array($decoded) ? $decoded : [];
+    }
+    $details = is_array($details) ? $details : [];
+
+    $action = strtoupper((string)$action);
+    $entity = strtolower((string)$entity);
+    $targetUser = $details['full_name'] ?? $details['username'] ?? $details['author'] ?? 'sistema';
+    $script = $details['script_name'] ?? $details['filename'] ?? 'script';
+    $version = $details['new_version'] ?? $details['version_number'] ?? $details['version'] ?? null;
+    $organization = $details['organization_acronym'] ?? $details['organization'] ?? null;
+
+    if ($action === 'LOGIN') return "Login do usuário {$targetUser}";
+    if ($action === 'LOGOUT') return "Logout do usuário {$targetUser}";
+    if ($action === 'LOGIN_FAILED') return "Falha de login do usuário {$targetUser}";
+
+    if ($entity === 'users') {
+        if (!empty($details['password_changed'])) return "Alteração de senha do usuário {$targetUser}";
+        if ($action === 'CREATE') return "Criação do usuário {$targetUser}";
+        if ($action === 'UPDATE') return "Edição do usuário {$targetUser}";
+        if ($action === 'DELETE') return "Exclusão do usuário {$targetUser}";
+        if ($action === 'ACTIVATE') return "Ativação do usuário {$targetUser}";
+        if ($action === 'DEACTIVATE') return "Desativação do usuário {$targetUser}";
+    }
+
+    if (in_array($entity, ['script_versions', 'om_script_versions'], true)) {
+        $versionText = $version !== null ? " v{$version}" : '';
+        if ($action === 'UPDATE') return "Nova versão do script {$script}{$versionText}";
+        if ($action === 'DELETE') return "Exclusão da versão do script {$script}{$versionText}";
+    }
+
+    if ($entity === 'scripts') {
+        if ($action === 'SYNC') return "Sincronização do script {$script}" . ($version !== null ? " v{$version}" : '');
+        if ($action === 'UPDATE') return "Edição do script {$script}";
+        if ($action === 'CREATE') return "Criação do script {$script}";
+        if ($action === 'DELETE') return "Exclusão do script {$script}";
+    }
+
+    if ($entity === 'bundles' && $action === 'GENERATE') {
+        $orgText = $organization ? " para OM {$organization}" : '';
+        $scriptCount = isset($details['scripts']) ? " com {$details['scripts']} scripts" : '';
+        return "Geração de bundle{$orgText}{$scriptCount}";
+    }
+
+    $labels = [
+        'CREATE' => 'Criação', 'UPDATE' => 'Alteração', 'DELETE' => 'Exclusão',
+        'UPLOAD' => 'Upload', 'GENERATE' => 'Geração', 'ACTIVATE' => 'Ativação',
+        'DEACTIVATE' => 'Desativação', 'RESET' => 'Redefinição', 'SYNC' => 'Sincronização'
+    ];
+    return ($labels[$action] ?? ucfirst(strtolower($action))) . " em {$entity}";
 }
 
 function log_audit($action, $entity, $entityId = null, $details = null) {
