@@ -58,7 +58,8 @@ function bumpOrgSerial($orgId) {
 }
 
 function isAdminGap() {
-    return isset($_SESSION['role']) && $_SESSION['role'] === 'admin_gap';
+    $role = $_SESSION['role'] ?? null;
+    return in_array($role, ['admin_gap', 'admin'], true);
 }
 
 function isAuditor() {
@@ -70,7 +71,16 @@ function isOperatorOm() {
 }
 
 function getUserOrgId() {
-    return $_SESSION['organization_id'] ?? null;
+    if (isAdminGap()) {
+        return null;
+    }
+
+    $orgId = $_SESSION['organization_id'] ?? null;
+    if ($orgId === null || $orgId === '' || (int)$orgId <= 0) {
+        return null;
+    }
+
+    return (int)$orgId;
 }
 
 function isLoggedIn() {

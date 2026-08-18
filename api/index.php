@@ -2182,20 +2182,15 @@ function handleGetAuditEvents() {
 
         $userOrgId = getUserOrgId();
 
-        // Auditores e operadores OM veem apenas eventos da propria OM; admin_gap veja tudo
+        // Admin GAP visualiza tudo. Auditores e operadores OM veem apenas eventos da propria OM.
         if (!isAdminGap()) {
-            if ($orgId !== null && $userOrgId !== null && $userOrgId !== $orgId) {
+            if ($orgId !== null && $orgId > 0 && $userOrgId !== null && $userOrgId !== $orgId) {
                 jsonError('Sem permissao', 403);
             }
             if ($userOrgId !== null) {
                 $where .= " AND a.organization_id = ?";
                 $params[] = $userOrgId;
             }
-        }
-
-        if ($orgId !== null && $orgId > 0 && isAdminGap()) {
-            $where .= " AND a.organization_id = ?";
-            $params[] = $orgId;
         }
         if ($startDate) {
             $where .= " AND a.created_at >= ?";
