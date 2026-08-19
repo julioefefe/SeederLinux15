@@ -373,6 +373,9 @@ function applyRolePermissions() {
     const jsonBtn = document.getElementById('audit-export-json');
     if (csvBtn) csvBtn.classList.toggle('hidden', !canExportAudit);
     if (jsonBtn) jsonBtn.classList.toggle('hidden', !canExportAudit);
+
+    const publicThemeSettings = document.getElementById('public-theme-settings');
+    if (publicThemeSettings) publicThemeSettings.classList.toggle('hidden', role !== 'admin_gap');
 }
 
 // ============ VIEW MANAGEMENT ============
@@ -452,6 +455,8 @@ async function loadDashboard() {
     document.getElementById('dash-stations-online').textContent = stats.stations_online || 0;
     document.getElementById('dash-stations-outdated').textContent = stats.stations_outdated || 0;
 
+    if (currentUser?.role === 'admin_gap') await loadPublicTheme();
+
     const stationsEl = document.getElementById('recent-stations');
     if (stationsEl) {
         if (stats.recent_stations?.length) {
@@ -494,6 +499,43 @@ async function loadDashboard() {
         `).join('');
     }
 }
+
+async function loadPublicTheme() {
+    const select = document.getElementById('public-theme-select');
+    const status = document.getElementById('public-theme-status');
+    if (!select) return;
+
+    try {
+        const res = await API.get('public-theme');
+        if (!res.success) throw new Error(res.error || 'Falha ao carregar o tema');
+        select.value = res.data?.theme === 'modern' ? 'modern' : 'classic';
+        if (status) status.textContent = select.value === 'modern' ? 'Moderno publicado' : 'Clássico publicado';
+    } catch (error) {
+        if (status) status.textContent = 'Indisponível';
+        Toast.error('Não foi possível carregar o tema público.');
+    }
+}
+
+async function savePublicTheme() {
+    const select = document.getElementById('public-theme-select');
+    const status = document.getElementById('public-theme-status');
+    const button = document.getElementById('btn-save-public-theme');
+    if (!select || currentUser?.role !== 'admin_gap') return;
+
+    button.disabled = true;
+    try {
+        const res = await API.post('set-public-theme', { theme: select.value });
+        if (!res.success) throw new Error(res.error || 'Falha ao salvar o tema');
+        if (status) status.textContent = select.value === 'modern' ? 'Moderno publicado' : 'Clássico publicado';
+        Toast.success('Tema da página pública atualizado.');
+    } catch (error) {
+        Toast.error(error.message || 'Não foi possível salvar o tema público.');
+        await loadPublicTheme();
+    } finally {
+        button.disabled = false;
+    }
+}
+window.savePublicTheme = savePublicTheme;
 
 // ============ ORGANIZATIONS DASHBOARD ============
 
@@ -2935,6 +2977,7 @@ function setupEventListeners() {
         openModal('modal-new-org');
     });
 
+    document.getElementById('btn-save-public-theme')?.addEventListener('click', savePublicTheme);
     document.getElementById('btn-save-vars')?.addEventListener('click', saveVariables);
     document.getElementById('btn-generate-bundle')?.addEventListener('click', generateBundle);
 

@@ -223,6 +223,27 @@
                             </div>
                         </div>
 
+                        <div id="public-theme-settings" class="card mb-6 hidden">
+                            <div class="card-header">
+                                <div>
+                                    <h3 class="card-title">Tela pública</h3>
+                                    <p class="page-subtitle">Escolha a apresentação exibida em <code>/</code>.</p>
+                                </div>
+                                <span id="public-theme-status" class="badge badge-info">Carregando...</span>
+                            </div>
+                            <div class="card-body flex items-center justify-between gap-4 flex-wrap">
+                                <label for="public-theme-select" class="text-sm text-slate-300">Tema publicado</label>
+                                <div class="flex items-center gap-3">
+                                    <select id="public-theme-select" class="form-select" aria-describedby="public-theme-help">
+                                        <option value="classic">Clássico</option>
+                                        <option value="modern">Moderno</option>
+                                    </select>
+                                    <button id="btn-save-public-theme" type="button" class="btn btn-primary btn-sm">Salvar tema</button>
+                                </div>
+                                <p id="public-theme-help" class="w-full text-xs text-slate-400">A alteração passa a valer na próxima abertura da página pública.</p>
+                            </div>
+                        </div>
+
                         <div class="grid gap-4 mt-4" style="grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));">
                             <div class="card">
                                 <div class="card-header">
