@@ -408,6 +408,20 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_entity ON audit_events(entity, entit
 CREATE INDEX IF NOT EXISTS idx_audit_events_date ON audit_events(created_at DESC);
 
 -- ============================================================================
+-- Table 10: settings
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+
+INSERT INTO settings (key, value)
+VALUES ('public_theme', 'classic')
+ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
 -- Permissions
 -- ============================================================================
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO seeder;

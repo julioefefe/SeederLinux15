@@ -244,6 +244,14 @@ try {
         case 'public-bundles':
             handlePublicBundles();
             break;
+        case 'public-theme':
+            handleGetPublicTheme();
+            break;
+        case 'set-public-theme':
+            requireAuth();
+            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            handleSetPublicTheme($input);
+            break;
 
         // Uploads
         case 'upload-wallpaper':
@@ -3106,3 +3114,32 @@ function handleResetScriptOrder() {
     }
 }
 
+// ============ SETTINGS ============
+
+function handleGetPublicTheme() {
+    try {
+        $row = Database::fetchOne("SELECT value FROM settings WHERE key = 'public_theme'");
+        $theme = ($row && in_array($row['value'], ['classic', 'modern'], true)) ? $row['value'] : 'classic';
+        jsonSuccess(['theme' => $theme]);
+    } catch (Throwable $e) {
+        jsonSuccess(['theme' => 'classic']);
+    }
+}
+
+function handleSetPublicTheme($input) {
+    if (!isAdminGap()) jsonError('Sem permissao: apenas admin_gap pode alterar configuracoes', 403);
+
+    $theme = sanitizeInput($input['theme'] ?? '');
+    if (!in_array($theme, ['classic', 'modern'], true)) {
+        jsonError('Valor invalido. Use: classic ou modern');
+    }
+
+    Database::execute(
+        "INSERT INTO settings (key, value, updated_at) VALUES ('public_theme', ?, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+        [$theme]
+    );
+
+    log_audit('UPDATE', 'settings', null, ['setting' => 'public_theme', 'value' => $theme]);
+    jsonSuccess(null, 'Tema da pagina publica atualizado');
+}
