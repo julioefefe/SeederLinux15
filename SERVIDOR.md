@@ -144,14 +144,14 @@ server {
     server_name seederlinux.comara.intraer;
 
     root /var/www/seederlinux-lite;
-    index index.html index.php;
+    index index.php index.html;
 
     add_header X-Content-Type-Options nosniff;
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-XSS-Protection "1; mode=block";
 
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri $uri/ /index.php;
     }
 
     location /api/ {

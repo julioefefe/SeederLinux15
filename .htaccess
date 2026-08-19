@@ -3,9 +3,6 @@ RewriteEngine On
 # Redirect root to index.php (router that chooses classic or modern theme)
 RewriteRule ^$ index.php [L]
 
-# Redirect /public to root (remove /public from URLs if someone accesses it)
-RewriteRule ^public/(.*)$ /$1 [R=301,L]
-
 # API routing - route api/ requests to api/index.php
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
