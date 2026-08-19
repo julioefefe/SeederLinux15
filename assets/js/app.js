@@ -197,3 +197,66 @@ window.toggleTheme = toggleTheme;
     const saved = localStorage.getItem('seederlinux-theme') || 'dark';
     applyThemePublic(saved);
 })();
+
+// Public bundle list
+function setPublicBundleState(message, type = 'empty') {
+    const tbody = document.getElementById('bundles-tbody');
+    const status = document.getElementById('bundle-status');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="6" class="table-state table-state-${type}">${Utils.escapeHtml(message)}</td></tr>`;
+    if (status) status.textContent = type === 'error' ? 'Indisponivel' : 'Nenhum publicado';
+}
+
+function renderPublicBundles(bundles) {
+    const tbody = document.getElementById('bundles-tbody');
+    const status = document.getElementById('bundle-status');
+    if (!tbody) return;
+    if (!Array.isArray(bundles) || bundles.length === 0) {
+        setPublicBundleState('Nenhum bundle publico disponivel no momento.');
+        return;
+    }
+
+    const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+    });
+    tbody.innerHTML = bundles.map((bundle) => {
+        const date = bundle.generated_at ? new Date(bundle.generated_at) : null;
+        const dateLabel = date && !Number.isNaN(date.getTime()) ? dateFormatter.format(date) : '-';
+        const description = bundle.description || 'Sem descricao';
+        return `<tr>
+            <td><span class="table-file">${Utils.escapeHtml(bundle.filename || '-')}</span></td>
+            <td><span class="table-org">${Utils.escapeHtml(bundle.acronym || '-')}</span><br>${Utils.escapeHtml(bundle.org_name || '')}</td>
+            <td><span class="table-description" title="${Utils.escapeHtml(description)}">${Utils.escapeHtml(description)}</span></td>
+            <td>${Utils.escapeHtml(String(bundle.scripts_count ?? 0))}</td>
+            <td>${Utils.escapeHtml(dateLabel)}</td>
+            <td><a class="download-link" href="api/?action=bundle-by-id&id=${encodeURIComponent(bundle.id)}">Baixar</a></td>
+        </tr>`;
+    }).join('');
+    if (status) status.textContent = `${bundles.length} publicado${bundles.length === 1 ? '' : 's'}`;
+}
+
+async function loadPublicBundles() {
+    const statBundles = document.getElementById('stat-bundles');
+    const statUpdated = document.getElementById('stat-updated');
+    try {
+        const response = await API.get('public-bundles');
+        if (!response.success) throw new Error(response.error || 'Resposta invalida');
+        const bundles = response.data || [];
+        renderPublicBundles(bundles);
+        if (statBundles) statBundles.textContent = bundles.length;
+        const latest = bundles.map(bundle => new Date(bundle.generated_at))
+            .filter(date => !Number.isNaN(date.getTime()))
+            .sort((left, right) => right - left)[0];
+        if (statUpdated) statUpdated.textContent = latest ? latest.toLocaleDateString('pt-BR') : '-';
+    } catch (error) {
+        console.error('Erro ao carregar bundles publicos:', error);
+        setPublicBundleState('Nao foi possivel carregar os bundles agora.', 'error');
+        if (statBundles) statBundles.textContent = '-';
+        if (statUpdated) statUpdated.textContent = '-';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.querySelector('.public-page')) loadPublicBundles();
+});
