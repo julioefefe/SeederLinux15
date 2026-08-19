@@ -1,6 +1,4 @@
-Aqui está o documento consolidado atualizado, pronto para ser adicionado ao repositório GitHub. Ele une o relatório de status funcional com a auditoria de segurança e robustez, indicando o que foi corrigido e o que segue pendente.
 
----
 
 # 📊 SeederLinux Lite — Documentação Técnica e Status do Projeto
 
@@ -174,6 +172,3 @@ Os 22 scripts estão presentes e com a ordem oficial:
 
 O **SeederLinux Lite** está **funcional em nível de aplicação e gestão**, com as principais correções aplicadas. Os maiores riscos restantes são a **integração real com AD** e a **implementação de controles de segurança críticos**. O sistema está pronto para validação assistida e, com a conclusão dos itens P0/P1, estará apto para produção.
 
----
-
-Esse é o documento consolidado para o repositório. Se quiser, posso gerar também um arquivo separado para a auditoria de segurança, mas esta versão já cobre os dois aspectos.
