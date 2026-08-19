@@ -77,6 +77,9 @@ CREATE TABLE IF NOT EXISTS variable_definitions (
     display_order INTEGER DEFAULT 0
 );
 
+-- Migra a constraint antiga para a regra de soft-delete também em bases existentes.
+ALTER TABLE organizations DROP CONSTRAINT IF EXISTS organizations_acronym_key;
+DROP INDEX IF EXISTS organizations_acronym_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_organizations_acronym_active ON organizations (acronym) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_var_defs_category ON variable_definitions(category);
 CREATE INDEX IF NOT EXISTS idx_var_defs_type ON variable_definitions(type);
@@ -195,6 +198,12 @@ INSERT INTO variable_definitions (name, placeholder, description, type, category
 -- Execution / Provisioning
 ('NON_INTERACTIVE', '{{NON_INTERACTIVE}}', 'Modo nao-interativo: true para execucao automatica, false para permitir prompts do usuario', 'boolean', 'avancado', FALSE, 'true', 160)
 ON CONFLICT (name) DO NOTHING;
+
+UPDATE variable_definitions
+SET
+    description = 'URL para download do pacote de certificados CA institucionais (formato .tar.gz). Deixe vazio se nao houver certificados personalizados.',
+    category = 'oculto'
+WHERE name = 'CERTIFICATE_BUNDLE';
 
 -- ============================================================================
 -- Table 5: organization_variables
@@ -339,6 +348,17 @@ CREATE TABLE IF NOT EXISTS deploy_bundles (
     is_active BOOLEAN DEFAULT true,
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Compatibilidade com bases criadas antes da coluna description.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'deploy_bundles' AND column_name = 'description'
+    ) THEN
+        ALTER TABLE deploy_bundles ADD COLUMN description TEXT;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_deploy_bundles_org ON deploy_bundles(organization_id);
 CREATE INDEX IF NOT EXISTS idx_deploy_bundles_date ON deploy_bundles(generated_at DESC);
