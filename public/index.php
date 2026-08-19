@@ -25,7 +25,7 @@ $release = 'MVP 1.0';
   <div class="site-shell">
     <header class="site-header" id="topo">
       <a class="brand" href="#topo" aria-label="SeederLinux Lite — início">
-        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <img class="brand-logo" src="/assets/images/seederlinux-logo.png" alt="">
         <span>Seeder<span>Linux</span> <em>Lite</em></span>
       </a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">
@@ -197,7 +197,7 @@ $release = 'MVP 1.0';
       <section class="final-cta" aria-labelledby="cta-title"><div class="cta-glow"></div><div class="section-kicker">uma base para operações previsíveis</div><h2 id="cta-title">Leve clareza para<br>a sua <span>próxima estação.</span></h2><p>Padronização, controle de versões, isolamento por organização e auditoria completa em uma plataforma local.</p><div class="cta-actions"><a class="button button-primary" href="#bundles">Ver bundles disponíveis <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#topo">Voltar ao início <span aria-hidden="true">↑</span></a></div></section>
     </main>
 
-    <footer class="site-footer"><a class="brand footer-brand" href="#topo"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Seeder<span>Linux</span> <em>Lite</em></span></a><p>Provisionamento Linux com previsibilidade, rastreabilidade e eficiência.</p><div class="footer-meta"><span>PHP · PostgreSQL · Bash · Python</span><span>documentação técnica baseada no projeto</span><span>© <span id="current-year"></span> SeederLinux Lite</span></div></footer>
+    <footer class="site-footer"><a class="brand footer-brand" href="#topo"><img class="brand-logo" src="/assets/images/seederlinux-logo.png" alt=""><span>Seeder<span>Linux</span> <em>Lite</em></span></a><p>Provisionamento Linux com previsibilidade, rastreabilidade e eficiência.</p><div class="footer-meta"><span>PHP · PostgreSQL · Bash · Python</span><span>documentação técnica baseada no projeto</span><span>© <span id="current-year"></span> SeederLinux Lite</span></div></footer>
   </div>
   <div class="toast" role="status" aria-live="polite">Comando copiado para a área de transferência.</div>
   <script src="/public/assets/js/script.js"></script>
