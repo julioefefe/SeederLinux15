@@ -375,7 +375,7 @@ function applyRolePermissions() {
     if (jsonBtn) jsonBtn.classList.toggle('hidden', !canExportAudit);
 
     const publicThemeSettings = document.getElementById('public-theme-settings');
-    if (publicThemeSettings) publicThemeSettings.classList.toggle('hidden', role !== 'admin_gap');
+    if (publicThemeSettings) publicThemeSettings.classList.toggle('hidden', !['admin_gap', 'admin'].includes(role));
 }
 
 // ============ VIEW MANAGEMENT ============
@@ -455,7 +455,7 @@ async function loadDashboard() {
     document.getElementById('dash-stations-online').textContent = stats.stations_online || 0;
     document.getElementById('dash-stations-outdated').textContent = stats.stations_outdated || 0;
 
-    if (currentUser?.role === 'admin_gap') await loadPublicTheme();
+    if (['admin_gap', 'admin'].includes(currentUser?.role)) await loadPublicTheme();
 
     const stationsEl = document.getElementById('recent-stations');
     if (stationsEl) {
@@ -520,7 +520,7 @@ async function savePublicTheme() {
     const select = document.getElementById('public-theme-select');
     const status = document.getElementById('public-theme-status');
     const button = document.getElementById('btn-save-public-theme');
-    if (!select || currentUser?.role !== 'admin_gap') return;
+    if (!select || !['admin_gap', 'admin'].includes(currentUser?.role)) return;
 
     button.disabled = true;
     try {

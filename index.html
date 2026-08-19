@@ -9,6 +9,18 @@
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script>
+        (async function () {
+            try {
+                var response = await fetch('/api/?action=public-theme', { cache: 'no-store' });
+                var result = await response.json();
+                if (result.success && result.data && result.data.theme === 'modern') {
+                    window.location.replace('/public/index.php');
+                }
+            } catch (error) {
+            }
+        }());
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script>
         (function () {
