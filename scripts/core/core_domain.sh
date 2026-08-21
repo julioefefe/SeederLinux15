@@ -1,13 +1,19 @@
 #!/bin/bash
 # ============================================================================
-# Core Script: core_domain.sh (v2 - State Machine)
+# Core Script: core_domain.sh (v3 - State Machine)
 # SeederLinux Lite - Gerenciador de Estado do Active Directory
 # ============================================================================
 # Implementa uma máquina de estados para diagnosticar, classificar e
 # corrigir o ingresso no AD, suportando SSSD (realm join) e Winbind
 # (net ads join) como fallback.
-# Os placeholders {{VARIAVEL}} são substituídos automaticamente
-# pelo sistema na geração do bundle.
+#
+# Estagios: 1) Diagnostico  2) Classificacao  3) Decisao
+#           4) Execucao (somente se necessario)  5) Pos-ingresso + Validacao
+#
+# Os placeholders {{VARIAVEL}} sao substituidos automaticamente
+# pelo sistema na geracao do bundle. Variaveis sensiveis usam o
+# formato __VARIAVEL__ (substituicao separada, nunca em texto plano
+# no restante do bundle).
 # ============================================================================
 
 set -e
@@ -34,6 +40,22 @@ ADMIN_USERNAME="{{ADMIN_USERNAME}}"
 ADMIN_PASSWORD_B64="__ADMIN_PASSWORD_B64__"
 AUTH_METHOD="{{AUTH_METHOD}}"
 
+# ============================================================
+# Checagem de sanidade: o backend PHP deve ter substituido os
+# placeholders criticos antes de gerar o bundle. Se algum deles
+# aparecer literal aqui, e bug do backend (nao deste script) -
+# abortar cedo com mensagem clara em vez de deixar o kinit falhar
+# silenciosamente mais adiante.
+# ============================================================
+if [[ "$ADMIN_USERNAME" == *"{{"* ]]; then
+    echo ">>> ERRO: placeholder ADMIN_USERNAME nao foi substituido pelo backend."
+    exit 1
+fi
+if [[ "$ADMIN_PASSWORD_B64" == "__"* && "$ADMIN_PASSWORD_B64" == *"__" ]]; then
+    echo ">>> ERRO: placeholder ADMIN_PASSWORD_B64 nao foi substituido pelo backend."
+    exit 1
+fi
+
 ADMIN_PASSWORD=""
 if [ -n "$ADMIN_PASSWORD_B64" ]; then
     ADMIN_PASSWORD=$(printf '%s' "$ADMIN_PASSWORD_B64" | base64 -d 2>/dev/null) || ADMIN_PASSWORD=""
@@ -48,6 +70,7 @@ fi
 echo ">>> Dominio: $DOMINIO"
 echo ">>> NetBIOS: $DOMINIO_NETBIOS"
 echo ">>> DC principal: $DC_IP"
+[ -n "$DC_IP_LIST" ] && echo ">>> DCs adicionais: $DC_IP_LIST"
 
 # ============================================================
 # ESTÁGIO 1: DIAGNÓSTICO
@@ -128,11 +151,11 @@ check_keytab() {
 }
 
 check_machine_account() {
-    if net ads testjoin > /dev/null 2>&1 2>/dev/null; then
+    if net ads testjoin > /dev/null 2>&1; then
         echo "Conta AD........ OK (verificada)"
         return 0
     else
-        if adcli testjoin --domain="$DOMINIO" > /dev/null 2>&1 2>/dev/null; then
+        if adcli testjoin --domain="$DOMINIO" > /dev/null 2>&1; then
             echo "Conta AD........ OK (adcli)"
             return 0
         else
@@ -167,6 +190,27 @@ TIME_OK=true && check_time_sync || TIME_OK=false
 echo "================================"
 
 # ============================================================
+# Helpers de saida do dominio - sempre com senha via stdin (ou
+# /dev/null se nao houver) para nunca ficar esperando prompt
+# interativo em execucao via cron/push remoto.
+# ============================================================
+realm_leave_safe() {
+    if [ -n "$ADMIN_PASSWORD" ]; then
+        echo "$ADMIN_PASSWORD" | realm leave "$DOMINIO" -U "$ADMIN_USERNAME" 2>/dev/null || true
+    else
+        realm leave "$DOMINIO" -U "$ADMIN_USERNAME" < /dev/null 2>/dev/null || true
+    fi
+}
+
+net_ads_leave_safe() {
+    if [ -n "$ADMIN_PASSWORD" ]; then
+        echo "$ADMIN_PASSWORD" | net ads leave -U "$ADMIN_USERNAME" 2>/dev/null || true
+    else
+        net ads leave -U "$ADMIN_USERNAME" < /dev/null 2>/dev/null || true
+    fi
+}
+
+# ============================================================
 # ESTÁGIO 2: CLASSIFICAR ESTADO
 # ============================================================
 echo ""
@@ -180,17 +224,46 @@ if [ "$REALM_OK" = "true" ] && [ "$SSSD_OK" = "true" ] && [ "$KEYTAB_OK" = "true
     fi
 elif [ "$WINBIND_OK" = "true" ] && [ "$MACHINE_OK" = "true" ]; then
     ESTADO="INGRESSADO_WINBIND"
-elif [ "$REALM_OK" = "false" ] && [ "$WINBIND_OK" = "false" ] && [ "$MACHINE_OK" = "false" ]; then
+elif [ "$REALM_OK" = "false" ] && [ "$WINBIND_OK" = "false" ] && [ "$MACHINE_OK" = "false" ] && [ "$KEYTAB_OK" = "false" ]; then
     ESTADO="NAO_INGRESSADO"
 elif [ "$REALM_OK" = "true" ] && [ "$KEYTAB_OK" = "false" ]; then
     ESTADO="CORROMPIDO"
 elif [ "$REALM_OK" = "true" ] && [ "$SSSD_OK" = "false" ]; then
     ESTADO="PARCIAL"
+elif [ "$MACHINE_OK" = "true" ] || [ "$KEYTAB_OK" = "true" ]; then
+    # Ha vestigios de um ingresso anterior (conta AD e/ou keytab) que nao
+    # bate com nenhum padrao "limpo" acima - tratar como CORROMPIDO em vez
+    # de INDETERMINADO, para passar pela limpeza (leave + remove keytab)
+    # antes de tentar um join novo. Evita duplicar a conta no AD.
+    ESTADO="CORROMPIDO"
 else
     ESTADO="INDETERMINADO"
 fi
 
 echo ">>> Estado detectado: $ESTADO"
+
+# ============================================================
+# Bloqueio preventivo: DNS/tempo quebrados antes de tentar ingresso
+# Kerberos depende diretamente dos dois - sem isso, kinit/realm join
+# falham de forma confusa la na frente. Avisamos aqui, cedo.
+# ============================================================
+if [ "$ESTADO" = "NAO_INGRESSADO" ] || [ "$ESTADO" = "INDETERMINADO" ]; then
+    if [ "$DNS_OK" = "false" ] || [ "$TIME_OK" = "false" ]; then
+        echo ""
+        echo ">>> AVISO: pre-requisitos do Kerberos com problema:"
+        [ "$DNS_OK" = "false" ] && echo "    - DNS nao resolve $DOMINIO (verifique DC_IP/DNS_PRIMARIO)"
+        [ "$TIME_OK" = "false" ] && echo "    - Relogio fora de sincronia (Kerberos rejeita diferenca > 5min)"
+        if [ "$NON_INTERACTIVE" = "true" ]; then
+            echo ">>> Modo nao interativo: prosseguindo mesmo assim (provavel falha adiante)."
+        else
+            read -p ">>> Deseja continuar mesmo assim? (s/N): " CONTINUE_APESAR_DE
+            if [[ ! "$CONTINUE_APESAR_DE" =~ ^[Ss]$ ]]; then
+                echo ">>> Instalação abortada pelo usuário."
+                exit 1
+            fi
+        fi
+    fi
+fi
 
 # ============================================================
 # ESTÁGIO 3: DECISÃO
@@ -208,14 +281,14 @@ case "$ESTADO" in
         fi
         if [[ "$REINGRESSAR" =~ ^[Ss]$ ]]; then
             echo ">>> Removendo ingresso existente..."
-            realm leave "$DOMINIO" -U "$ADMIN_USERNAME" 2>/dev/null || true
-            net ads leave -U "$ADMIN_USERNAME" 2>/dev/null || true
+            realm_leave_safe
+            net_ads_leave_safe
             ESTADO="NAO_INGRESSADO"
         else
             echo ">>> Mantendo ingresso existente. Pulando ingresso."
         fi
         ;;
-    
+
     INGRESSADO_WINBIND)
         echo ">>> A máquina está ingressada via Winbind (método legado)."
         echo ">>> Recomenda-se migrar para SSSD."
@@ -226,14 +299,14 @@ case "$ESTADO" in
         fi
         if [[ ! "$MIGRAR" =~ ^[Nn]$ ]]; then
             echo ">>> Removendo ingresso Winbind..."
-            net ads leave -U "$ADMIN_USERNAME" 2>/dev/null || true
+            net_ads_leave_safe
             systemctl stop winbind 2>/dev/null || true
             ESTADO="NAO_INGRESSADO"
         else
             echo ">>> Mantendo Winbind. Pulando ingresso."
         fi
         ;;
-    
+
     CORROMPIDO|PARCIAL)
         echo ">>> AVISO: Estado inconsistente detectado ($ESTADO)."
         echo ">>> Possíveis causas: keytab ausente, SSSD parado, ou ingresso parcial."
@@ -244,8 +317,8 @@ case "$ESTADO" in
         fi
         if [[ ! "$REPARAR" =~ ^[Nn]$ ]]; then
             echo ">>> Executando limpeza completa..."
-            realm leave "$DOMINIO" 2>/dev/null || true
-            net ads leave -U "$ADMIN_USERNAME" 2>/dev/null || true
+            realm_leave_safe
+            net_ads_leave_safe
             rm -f /etc/krb5.keytab
             systemctl stop sssd 2>/dev/null || true
             systemctl stop winbind 2>/dev/null || true
@@ -258,7 +331,7 @@ case "$ESTADO" in
             echo ">>> Prosseguindo sem reparar (pode falhar)."
         fi
         ;;
-    
+
     INDETERMINADO)
         echo ">>> Estado indeterminado. Tentando ingresso como máquina nova."
         ESTADO="NAO_INGRESSADO"
@@ -272,12 +345,19 @@ if [ "$ESTADO" = "NAO_INGRESSADO" ]; then
     echo ""
     echo ">>> ESTÁGIO 4: Executando ingresso no domínio"
 
-    # Garantir DNS para o DC
+    # ------------------------------------------------------------
+    # Ajustar DNS para o(s) DC(s) - o DC principal primeiro, os
+    # demais de DC_IP_LIST como fallback. Sem isso, se o DC_IP
+    # unico estiver fora do ar, o ingresso falha desnecessariamente.
+    # ------------------------------------------------------------
     echo ">>> Ajustando DNS para ingresso no dominio..."
-    cat > /etc/resolv.conf <<EOF
-nameserver $DC_IP
-search $DOMINIO
-EOF
+    {
+        echo "nameserver $DC_IP"
+        for dc in $DC_IP_LIST; do
+            [ "$dc" != "$DC_IP" ] && echo "nameserver $dc"
+        done
+        echo "search $DOMINIO"
+    } > /etc/resolv.conf
 
     # Configurar Kerberos
     echo ">>> Configurando Kerberos..."
@@ -383,11 +463,15 @@ EOF
     JOIN_OK=false
     JOIN_METHOD=""
 
+    # --computer-ou so e passado quando definido; vazio faz o AD
+    # usar a OU padrao de computadores em vez de rejeitar o join
+    REALM_JOIN_ARGS=(--user="$ADMIN_USERNAME" --verbose)
+    if [ -n "$OU_PADRAO" ]; then
+        REALM_JOIN_ARGS+=(--computer-ou="$OU_PADRAO")
+    fi
+
     echo ">>> Ingressando no domínio via realm join (SSSD)..."
-    if echo "$ADMIN_PASSWORD" | realm join "$DOMINIO" \
-        --user="$ADMIN_USERNAME" \
-        --computer-ou="$OU_PADRAO" \
-        --verbose 2>&1; then
+    if echo "$ADMIN_PASSWORD" | realm join "$DOMINIO" "${REALM_JOIN_ARGS[@]}" 2>&1; then
         JOIN_OK=true
         JOIN_METHOD="sssd"
         echo ">>> Ingresso via SSSD (realm join) bem-sucedido!"
@@ -403,22 +487,32 @@ EOF
             sed -i '/\[global\]/a\    kerberos method = secrets and keytab' /etc/samba/smb.conf
         fi
 
-        DC_FQDN="dc-${OM_ACRONYM,,}.${DOMINIO}"
-        if echo "$ADMIN_PASSWORD" | net ads join "$DOMINIO" \
-            -U "$ADMIN_USERNAME" \
-            -S "$DC_FQDN" \
-            createcomputer="$OU_PADRAO" 2>&1; then
+        # -S aceita IP diretamente; usar DC_IP em vez de tentar
+        # adivinhar o hostname do DC por convencao de nome
+        NET_JOIN_ARGS=(-U "$ADMIN_USERNAME" -S "$DC_IP")
+        if [ -n "$OU_PADRAO" ]; then
+            NET_JOIN_ARGS+=(createcomputer="$OU_PADRAO")
+        fi
+
+        if echo "$ADMIN_PASSWORD" | net ads join "$DOMINIO" "${NET_JOIN_ARGS[@]}" 2>&1; then
             JOIN_OK=true
             JOIN_METHOD="winbind"
             echo ">>> Ingresso via Winbind (net ads join) bem-sucedido!"
 
-            # Gerar keytab
-            net ads keytab create -U "$ADMIN_USERNAME" -P "$ADMIN_PASSWORD" 2>/dev/null || {
+            # net ads join NAO gera o keytab de maquina sozinho.
+            # Como ja temos um ticket Kerberos valido em cache (kinit
+            # acima), "net ads keytab create" usa esse cache
+            # automaticamente - nao aceita/precisa de senha via -P.
+            echo ">>> Gerando keytab..."
+            if ! net ads keytab create 2>/dev/null; then
+                echo ">>> net ads keytab create falhou. Tentando via adcli..."
                 echo "$ADMIN_PASSWORD" | adcli join "$DOMINIO" \
                     --login-user="$ADMIN_USERNAME" \
-                    --domain-ou="$OU_PADRAO" \
-                    --stdin-password 2>&1 || true
-            }
+                    ${OU_PADRAO:+--domain-ou="$OU_PADRAO"} \
+                    --stdin-password 2>&1 || {
+                    echo ">>> AVISO: Falha ao gerar keytab. Login offline pode nao funcionar."
+                }
+            fi
         else
             echo ">>> net ads join falhou."
         fi
@@ -581,14 +675,14 @@ if [ "$JOIN_METHOD" = "sssd" ] || [ "$ESTADO" = "INGRESSADO_SSSD" ] || [ "$ESTAD
         echo "✘ SSSD NÃO está ativo"
         VALIDATION_OK=false
     fi
-    
+
     if [ -f /etc/krb5.keytab ] && [ -s /etc/krb5.keytab ]; then
         echo "✔ Keytab presente"
     else
         echo "✘ Keytab ausente ou vazio"
         VALIDATION_OK=false
     fi
-    
+
     if realm list 2>/dev/null | grep -q "$DOMINIO"; then
         echo "✔ Realm associado"
     else
@@ -605,11 +699,18 @@ if [ "$JOIN_METHOD" = "winbind" ] || [ "$ESTADO" = "INGRESSADO_WINBIND" ]; then
         echo "✘ Winbind NÃO está ativo"
         VALIDATION_OK=false
     fi
-    
+
     if net ads testjoin > /dev/null 2>&1; then
         echo "✔ Testjoin OK"
     else
         echo "✘ Testjoin FALHOU"
+        VALIDATION_OK=false
+    fi
+
+    if [ -f /etc/krb5.keytab ] && [ -s /etc/krb5.keytab ]; then
+        echo "✔ Keytab presente"
+    else
+        echo "✘ Keytab ausente ou vazio (login offline pode nao funcionar)"
         VALIDATION_OK=false
     fi
 fi
@@ -618,11 +719,11 @@ if [ "$VALIDATION_OK" = "false" ]; then
     echo ""
     echo ">>> AVISO: Alguns testes de validação falharam."
     echo ">>> O ingresso pode não estar completamente funcional."
-        if [ "$NON_INTERACTIVE" = "true" ]; then
-            CONTINUE="s"
-        else
-            read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
-        fi
+    if [ "$NON_INTERACTIVE" = "true" ]; then
+        CONTINUE="s"
+    else
+        read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
+    fi
 fi
 
 echo ""
