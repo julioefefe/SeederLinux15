@@ -41,6 +41,24 @@ NTP_SERVER="${NTP_SERVER#https://}"
 NTP_SERVER="${NTP_SERVER#http://}"
 NTP_SERVER="${NTP_SERVER#https://}"
 
+# ============================================================
+# SERIAL_APLICADO e ESTADO LOCAL da estacao (o ultimo serial de
+# configuracao que ela aplicou com sucesso), NAO um valor da OM.
+# Se este script rodar de novo (bundle regenerado e reaplicado numa
+# estacao ja provisionada), NAO podemos simplesmente sobrescrever
+# com "0" de novo - isso faria a estacao "esquecer" que ja estava
+# em dia e forcaria o seeder-sync a reaplicar tudo, alem de
+# atrapalhar o agente na comparacao de serial com o servidor.
+# Preservamos o valor existente se ja houver um; so usamos "0" na
+# primeira geracao (estacao nova, sem config.env ainda).
+# ============================================================
+SERIAL_APLICADO_ATUAL="0"
+if [ -f "$CONFIG_FILE" ]; then
+    VALOR_EXISTENTE="$(grep -m1 '^SERIAL_APLICADO=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"')"
+    [ -n "$VALOR_EXISTENTE" ] && SERIAL_APLICADO_ATUAL="$VALOR_EXISTENTE"
+fi
+echo ">>> SERIAL_APLICADO preservado: $SERIAL_APLICADO_ATUAL"
+
 cat > "$CONFIG_FILE" <<EOF
 # SeederLinux Lite - Configuracao Persistente
 # NAO EDITAR MANUALMENTE - gerado pelo core_config.sh
@@ -131,6 +149,10 @@ CONKY_CONFIG='{{CONKY_CONFIG}}'
 
 # Servidor SeederLinux (para o agente Python)
 SEEDER_SERVER="{{SEEDER_SERVER}}"
+
+# Estado local (GPO) - NAO e uma variavel da OM, e o progresso desta
+# estacao. Preservado entre regeneracoes do bundle (ver logica acima).
+SERIAL_APLICADO="${SERIAL_APLICADO_ATUAL}"
 EOF
 
 chmod 644 "$CONFIG_FILE"
