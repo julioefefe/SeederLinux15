@@ -2650,9 +2650,22 @@ async function loadStations() {
     const el = document.getElementById('stations-tbody');
     if (!el) return;
 
-    el.innerHTML = res.data.length ? res.data.map(s => {
+    const stations = Array.isArray(res.data) ? res.data : (res.data?.stations || []);
+    el.innerHTML = stations.length ? stations.map(s => {
         const connBadge = { online: 'badge-success', delayed: 'badge-warning', never: 'badge-secondary' }[s.connection_status] || 'badge-secondary';
         const connLabel = { online: 'Online', delayed: 'Atrasada', never: 'Nunca' }[s.connection_status] || '-';
+        const appliedSerial = Number(s.serial_aplicado || 0);
+        const configSerial = Number(s.serial_config || 0);
+        const neverCheckedIn = appliedSerial === 0 && !s.last_checkin;
+        const configBadge = neverCheckedIn
+            ? 'badge-secondary'
+            : appliedSerial < configSerial ? 'badge-warning' : 'badge-success';
+        const configLabel = neverCheckedIn ? 'Nunca' : appliedSerial < configSerial ? 'Pendente' : 'Atualizada';
+        const configTitle = neverCheckedIn
+            ? 'A estacao nunca fez check-in'
+            : appliedSerial < configSerial
+                ? 'A estacao precisa aplicar a configuracao mais recente'
+                : 'A estacao esta com a configuracao atual';
         return `
             <tr>
                 <td class="px-4 py-3">${Utils.escapeHtml(s.hostname)}</td>
@@ -2662,8 +2675,11 @@ async function loadStations() {
                 <td class="px-4 py-3">${Utils.formatDate(s.last_checkin)}</td>
                 <td class="px-4 py-3"><span class="badge ${connBadge}">${connLabel}</span></td>
                 <td class="px-4 py-3">${Utils.escapeHtml(s.org_acronym || '-')}</td>
+                <td class="px-4 py-3 font-mono text-sm">${configSerial}</td>
+                <td class="px-4 py-3 font-mono text-sm">${appliedSerial}</td>
+                <td class="px-4 py-3"><span class="badge ${configBadge}" title="${configTitle}">${configLabel}</span></td>
             </tr>`;
-    }).join('') : '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Nenhuma estacao</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="px-4 py-8 text-center text-slate-400">Nenhuma estacao</td></tr>';
 }
 
 // ============ AUDIT ============
