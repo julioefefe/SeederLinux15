@@ -37,6 +37,7 @@ if [ -z "$DESKTOP_ENV" ] || [ "$DESKTOP_ENV" = "" ]; then
     elif command -v gnome-session &>/dev/null; then DESKTOP_ENV="gnome"
     elif command -v startxfce4 &>/dev/null; then DESKTOP_ENV="xfce"
     elif command -v startplasma-x11 &>/dev/null; then DESKTOP_ENV="kde"
+    elif command -v lxqt-session &>/dev/null; then DESKTOP_ENV="lxqt"
     elif command -v startlxde &>/dev/null; then DESKTOP_ENV="lxde"
     else DESKTOP_ENV="unknown"
     fi
@@ -215,7 +216,7 @@ chmod +x /usr/local/bin/seederlinux-conky
 echo ">>> Configurando autostart do Conky para: $DESKTOP_ENV"
 
 case "$DESKTOP_ENV" in
-    cinnamon|mate|xfce|lxde|gnome)
+    cinnamon|mate|xfce|lxde|lxqt|gnome)
         mkdir -p /etc/xdg/autostart
         cat > /etc/xdg/autostart/seederlinux-conky.desktop <<EOF
 [Desktop Entry]
