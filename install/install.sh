@@ -96,7 +96,7 @@ install_system_packages() {
     print_header "INSTALANDO PACOTES DO SISTEMA"
 
     print_step "Instalando utilitários básicos..."
-    apt-get install -y -qq curl wget git unzip ca-certificates apt-transport-https
+    apt-get install -y -qq curl wget git unzip ca-certificates apt-transport-https nodejs npm
 
     print_step "Instalando PostgreSQL..."
     apt-get install -y -qq postgresql postgresql-contrib
