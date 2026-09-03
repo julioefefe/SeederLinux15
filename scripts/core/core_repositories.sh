@@ -73,8 +73,40 @@ backup_sources() {
 # ============================================================
 # Obter codename da distro
 # ============================================================
+# CORRECAO: antes dependia exclusivamente de `lsb_release -cs`. O
+# pacote que fornece esse comando (lsb-release) so e instalado no
+# core_packages.sh, que roda na etapa 03 - mas este script (repos)
+# roda na etapa 02, ANTES. Numa instalacao minima sem lsb_release
+# presente, caia direto no fallback hardcoded (ex.: "noble"), que so
+# acerta por coincidencia se a estacao realmente for essa versao -
+# numa frota com versoes misturadas, aponta pro codename errado e
+# quebra o apt-get update.
+#
+# Agora le VERSION_CODENAME direto de /etc/os-release primeiro: esse
+# arquivo existe por padrao em qualquer Debian/Ubuntu/Mint/Zorin, sem
+# precisar de nenhum pacote extra instalado, e reflete a versao real
+# da estacao com mais confianca. lsb_release fica como segunda opcao
+# (caso ja esteja instalado) e o parametro passado como ultimo
+# fallback, igual antes.
 get_codename() {
-    lsb_release -cs 2>/dev/null || echo "$1"
+    local fallback="$1"
+    local codename=""
+
+    if [ -f /etc/os-release ]; then
+        codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+    fi
+
+    if [ -z "$codename" ] && command -v lsb_release &>/dev/null; then
+        codename="$(lsb_release -cs 2>/dev/null)"
+    fi
+
+    if [ -z "$codename" ]; then
+        echo ">>> AVISO: nao foi possivel determinar o codename real da estacao." >&2
+        echo ">>> Usando fallback hardcoded: $fallback" >&2
+        codename="$fallback"
+    fi
+
+    echo "$codename"
 }
 
 # ============================================================
