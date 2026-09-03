@@ -68,11 +68,32 @@ if [ "$INSTALL_JAVA8" = "true" ]; then
 
         if wget -q -O /tmp/adoptium-key.asc "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>/dev/null; then
             gpg --dearmor < /tmp/adoptium-key.asc > /usr/share/keyrings/adoptium-keyring.gpg 2>/dev/null || true
-            echo "deb [signed-by=/usr/share/keyrings/adoptium-keyring.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" \
+
+            # CORRECAO: "bookworm" (codename Debian) estava fixo aqui,
+            # mesmo rodando em Ubuntu/Mint/Zorin - o Adoptium tem suites
+            # por distro/codename de verdade, entao isso podia causar
+            # apt-get update falhando (404) ou puxando pacote
+            # incompativel. Mesma tecnica ja usada no core_repositories.sh:
+            # ler VERSION_CODENAME de /etc/os-release em vez de chutar.
+            ADOPTIUM_CODENAME=""
+            if [ -f /etc/os-release ]; then
+                ADOPTIUM_CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+            fi
+            [ -z "$ADOPTIUM_CODENAME" ] && command -v lsb_release &>/dev/null && \
+                ADOPTIUM_CODENAME="$(lsb_release -cs 2>/dev/null)"
+            if [ -z "$ADOPTIUM_CODENAME" ]; then
+                echo ">>> AVISO: nao foi possivel detectar o codename da distro."
+                echo ">>> Usando fallback: bookworm (pode falhar se nao for Debian)"
+                ADOPTIUM_CODENAME="bookworm"
+            fi
+            echo ">>> Codename detectado para o repositorio Adoptium: $ADOPTIUM_CODENAME"
+
+            echo "deb [signed-by=/usr/share/keyrings/adoptium-keyring.gpg] https://packages.adoptium.net/artifactory/deb ${ADOPTIUM_CODENAME} main" \
                 > /etc/apt/sources.list.d/adoptium.list
             apt-get update
             apt-get install -y temurin-8-jre || {
                 echo ">>> AVISO: Falha ao instalar Java 8 via Adoptium."
+                echo ">>> Verifique se o Adoptium tem suporte ao codename '$ADOPTIUM_CODENAME'."
             }
             rm -f /tmp/adoptium-key.asc
         else
