@@ -57,6 +57,7 @@ if [ -z "$DESKTOP_ENV" ] || [ "$DESKTOP_ENV" = "" ]; then
     elif command -v gnome-session &>/dev/null; then DESKTOP_ENV="gnome"
     elif command -v startxfce4 &>/dev/null; then DESKTOP_ENV="xfce"
     elif command -v startplasma-x11 &>/dev/null; then DESKTOP_ENV="kde"
+    elif command -v lxqt-session &>/dev/null; then DESKTOP_ENV="lxqt"
     elif command -v startlxde &>/dev/null; then DESKTOP_ENV="lxde"
     else DESKTOP_ENV="unknown"
     fi
@@ -87,6 +88,25 @@ echo ">>> Tema: $THEME"
 mkdir -p /usr/share/seederlinux/branding
 mkdir -p /usr/share/backgrounds/seederlinux
 mkdir -p /usr/share/pixmaps
+
+# ============================================================
+# Garantir perfil dconf "user" com o banco system-db:local incluido.
+# Sem isso, TUDO que escrevemos em /etc/dconf/db/local.d/ (GNOME,
+# Cinnamon, MATE) e ignorado pelos usuarios - dconf so aplica um
+# banco de sistema se o perfil do usuario listar explicitamente
+# "system-db:<nome>". Alguns pacotes de DE ja criam isso no
+# postinst, mas nao e garantido em toda combinacao de distro/DE -
+# entao garantimos aqui de forma idempotente.
+# ============================================================
+mkdir -p /etc/dconf/profile
+if [ ! -f /etc/dconf/profile/user ]; then
+    cat > /etc/dconf/profile/user <<EOF
+user-db:user
+system-db:local
+EOF
+elif ! grep -q "^system-db:local$" /etc/dconf/profile/user; then
+    echo "system-db:local" >> /etc/dconf/profile/user
+fi
 
 # ============================================================
 # Baixar e instalar wallpaper
@@ -184,34 +204,42 @@ echo ">>> Aplicando configuracoes para: $DESKTOP_ENV"
 
 case "$DESKTOP_ENV" in
     cinnamon)
-        # Cinnamon - via gsettings (schema global)
-        mkdir -p /etc/skel/.config
-        cat > /etc/skel/.config/cinnamon-settings.conf <<EOF
-[org.cinnamon.desktop.background]
+        # CORRECAO: Cinnamon usa dconf (e um fork do GNOME), nao um
+        # arquivo de configuracao solto. A versao anterior escrevia em
+        # /etc/skel/.config/cinnamon-settings.conf, que o Cinnamon
+        # nunca le - nao tinha efeito nenhum. Usar dconf keyfile igual
+        # ao branch do GNOME, com sintaxe de caminho (barras), nao a
+        # notacao com pontos do schema id.
+        mkdir -p /etc/dconf/db/local.d
+        cat > /etc/dconf/db/local.d/seederlinux-branding-cinnamon <<EOF
+[org/cinnamon/desktop/background]
 picture-uri='file:///usr/share/backgrounds/seederlinux/wallpaper.jpg'
 picture-options='zoom'
 
-[org.cinnamon.desktop.interface]
+[org/cinnamon/desktop/interface]
 gtk-theme='${THEME}'
-icon-theme='Adwaita'
+icon-theme-name='Adwaita'
 
-[org.cinnamon.theme]
+[org/cinnamon/theme]
 name='${THEME}'
 EOF
+        dconf update 2>/dev/null || true
         ;;
 
     mate)
-        # MATE - via gsettings
-        mkdir -p /etc/skel/.config
-        cat > /etc/skel/.config/mate-background.conf <<EOF
-[org.mate.desktop.background]
+        # CORRECAO: mesmo problema do Cinnamon - MATE tambem usa dconf,
+        # nao /etc/skel/.config/mate-background.conf (nunca lido).
+        mkdir -p /etc/dconf/db/local.d
+        cat > /etc/dconf/db/local.d/seederlinux-branding-mate <<EOF
+[org/mate/desktop/background]
 picture-filename='/usr/share/backgrounds/seederlinux/wallpaper.jpg'
 picture-options='zoom'
 
-[org.mate.desktop.interface]
+[org/mate/desktop/interface]
 gtk-theme='${THEME}'
 icon-theme='Adwaita'
 EOF
+        dconf update 2>/dev/null || true
         ;;
 
     gnome)
