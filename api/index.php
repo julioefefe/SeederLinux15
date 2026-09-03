@@ -1932,13 +1932,37 @@ function handleGenerateBundle($input) {
 }
 
 function handleDownloadBundle($id) {
-    requireAuth();
+    $stationOrganizationId = null;
+    $headers = function_exists('getallheaders') ? getallheaders() : [];
+    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+
+    if (preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
+        $stationToken = trim($matches[1]);
+        $station = Database::fetchOne(
+            "SELECT organization_id FROM stations WHERE token = ?",
+            [$stationToken]
+        );
+        if ($station) {
+            $stationOrganizationId = (int)$station['organization_id'];
+        }
+    }
+
+    if ($stationOrganizationId === null) {
+        requireAuth();
+    }
+
     $bundle = Database::fetchOne("SELECT id, organization_id, filename, content FROM deploy_bundles WHERE id = ?", [$id]);
     if (!$bundle) jsonError('Bundle nao encontrado', 404);
 
-    $userOrgId = getUserOrgId();
-    if ($userOrgId !== null && !isAdminGap() && (int)$bundle['organization_id'] !== $userOrgId) {
-        jsonError('Sem permissao', 403);
+    if ($stationOrganizationId !== null) {
+        if ((int)$bundle['organization_id'] !== $stationOrganizationId) {
+            jsonError('Sem permissao', 403);
+        }
+    } else {
+        $userOrgId = getUserOrgId();
+        if ($userOrgId !== null && !isAdminGap() && (int)$bundle['organization_id'] !== $userOrgId) {
+            jsonError('Sem permissao', 403);
+        }
     }
 
     header('Content-Type: application/octet-stream');
