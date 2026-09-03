@@ -6,6 +6,8 @@
 -- Core script content is loaded separately by insert_core_scripts.sql.
 -- ============================================================================
 
+CREATE SCHEMA IF NOT EXISTS mirror;
+
 -- ============================================================================
 -- Table 1: organizations (created first — users references it)
 -- ============================================================================
@@ -424,7 +426,31 @@ ON CONFLICT (key) DO NOTHING;
 -- ============================================================================
 -- Mirror module (database foundation; synchronization is implemented later)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS mirror_config (
+DO $$
+BEGIN
+    IF to_regclass('public.mirror_config') IS NOT NULL AND to_regclass('mirror.config') IS NULL THEN
+        ALTER TABLE public.mirror_config SET SCHEMA mirror;
+        ALTER TABLE mirror.mirror_config RENAME TO config;
+    END IF;
+    IF to_regclass('public.mirror_distros') IS NOT NULL AND to_regclass('mirror.distros') IS NULL THEN
+        ALTER TABLE public.mirror_distros SET SCHEMA mirror;
+        ALTER TABLE mirror.mirror_distros RENAME TO distros;
+    END IF;
+    IF to_regclass('public.mirror_versions') IS NOT NULL AND to_regclass('mirror.versions') IS NULL THEN
+        ALTER TABLE public.mirror_versions SET SCHEMA mirror;
+        ALTER TABLE mirror.mirror_versions RENAME TO versions;
+    END IF;
+    IF to_regclass('public.mirror_jobs') IS NOT NULL AND to_regclass('mirror.jobs') IS NULL THEN
+        ALTER TABLE public.mirror_jobs SET SCHEMA mirror;
+        ALTER TABLE mirror.mirror_jobs RENAME TO jobs;
+    END IF;
+    IF to_regclass('public.organization_repository_settings') IS NOT NULL
+       AND to_regclass('mirror.organization_repository_settings') IS NULL THEN
+        ALTER TABLE public.organization_repository_settings SET SCHEMA mirror;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS mirror.config (
     id SERIAL PRIMARY KEY,
     enabled BOOLEAN DEFAULT FALSE,
     tool VARCHAR(20) DEFAULT 'aptly',
@@ -435,7 +461,7 @@ CREATE TABLE IF NOT EXISTS mirror_config (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS mirror_distros (
+CREATE TABLE IF NOT EXISTS mirror.distros (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     codename VARCHAR(50) NOT NULL,
@@ -444,15 +470,15 @@ CREATE TABLE IF NOT EXISTS mirror_distros (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS mirror_versions (
+CREATE TABLE IF NOT EXISTS mirror.versions (
     id SERIAL PRIMARY KEY,
-    distro_id INTEGER REFERENCES mirror_distros(id) ON DELETE CASCADE,
+    distro_id INTEGER REFERENCES mirror.distros(id) ON DELETE CASCADE,
     version VARCHAR(50) NOT NULL,
     status VARCHAR(20) DEFAULT 'current',
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS mirror_jobs (
+CREATE TABLE IF NOT EXISTS mirror.jobs (
     id SERIAL PRIMARY KEY,
     job_type VARCHAR(20) NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',
@@ -463,9 +489,9 @@ CREATE TABLE IF NOT EXISTS mirror_jobs (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS organization_repository_settings (
+CREATE TABLE IF NOT EXISTS mirror.organization_repository_settings (
     id SERIAL PRIMARY KEY,
-    organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    organization_id INTEGER NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
     use_local_mirror BOOLEAN DEFAULT FALSE,
     mirror_priority INTEGER DEFAULT 100,
     created_at TIMESTAMP DEFAULT NOW(),
@@ -473,17 +499,17 @@ CREATE TABLE IF NOT EXISTS organization_repository_settings (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_distros_name_codename
-    ON mirror_distros(name, codename);
+    ON mirror.distros(name, codename);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_versions_distro_version
-    ON mirror_versions(distro_id, version);
+    ON mirror.versions(distro_id, version);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_org_repository_settings_org
-    ON organization_repository_settings(organization_id);
+    ON mirror.organization_repository_settings(organization_id);
 
-INSERT INTO mirror_config (enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours)
+INSERT INTO mirror.config (enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours)
 SELECT FALSE, 'aptly', '/var/lib/seederlinux/mirror', TRUE, 24
-WHERE NOT EXISTS (SELECT 1 FROM mirror_config);
+WHERE NOT EXISTS (SELECT 1 FROM mirror.config);
 
-INSERT INTO mirror_distros (name, codename) VALUES
+INSERT INTO mirror.distros (name, codename) VALUES
     ('Debian', 'bookworm'),
     ('Debian', 'trixie'),
     ('Debian', 'forky'),
@@ -493,28 +519,28 @@ INSERT INTO mirror_distros (name, codename) VALUES
     ('Zorin', 'jammy')
 ON CONFLICT (name, codename) DO NOTHING;
 
-UPDATE mirror_distros AS child
+UPDATE mirror.distros AS child
 SET base_distro_id = base.id
-FROM mirror_distros AS base
+FROM mirror.distros AS base
 WHERE child.name = 'Linux Mint'
   AND base.name = 'Ubuntu'
   AND base.codename = 'noble';
 
-UPDATE mirror_distros AS child
+UPDATE mirror.distros AS child
 SET base_distro_id = base.id
-FROM mirror_distros AS base
+FROM mirror.distros AS base
 WHERE child.name = 'Zorin'
     AND base.name = 'Ubuntu'
     AND base.codename = 'jammy';
 
-INSERT INTO mirror_versions (distro_id, version, status)
+INSERT INTO mirror.versions (distro_id, version, status)
 SELECT id, codename,
     CASE
         WHEN codename IN ('trixie', 'noble', 'wilma') THEN 'current'
         WHEN codename IN ('bookworm', 'jammy') THEN 'old'
         WHEN codename = 'forky' THEN 'future'
     END
-FROM mirror_distros
+FROM mirror.distros
 ON CONFLICT (distro_id, version) DO NOTHING;
 
 -- ============================================================================
@@ -522,6 +548,9 @@ ON CONFLICT (distro_id, version) DO NOTHING;
 -- ============================================================================
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO seeder;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO seeder;
+GRANT USAGE ON SCHEMA mirror TO seeder;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA mirror TO seeder;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mirror TO seeder;
 
 -- ============================================================================
 -- VERIFICACAO DE INTEGRIDADE

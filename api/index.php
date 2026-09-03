@@ -482,7 +482,7 @@ function handleSessionCheck() {
 function handleMirrorStatus() {
     $config = Database::fetchOne(
         "SELECT enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours
-         FROM mirror_config ORDER BY id LIMIT 1"
+         FROM mirror.config ORDER BY id LIMIT 1"
     ) ?: [
         'enabled' => false,
         'tool' => 'aptly',
@@ -499,8 +499,8 @@ function handleMirrorStatus() {
     $availableDistros = [];
     $distroRows = Database::fetchAll(
         "SELECT d.id, d.name, d.codename, d.active, v.version, v.status
-         FROM mirror_distros d
-         LEFT JOIN mirror_versions v ON v.distro_id = d.id
+         FROM mirror.distros d
+         LEFT JOIN mirror.versions v ON v.distro_id = d.id
          WHERE d.active = TRUE
          ORDER BY d.name, d.id, v.version"
     );
@@ -521,11 +521,11 @@ function handleMirrorStatus() {
     }
 
     $lastJob = Database::fetchOne(
-        "SELECT status FROM mirror_jobs WHERE job_type = 'sync'
+        "SELECT status FROM mirror.jobs WHERE job_type = 'sync'
          ORDER BY COALESCE(finished_at, started_at, created_at) DESC, id DESC LIMIT 1"
     );
     $organizationUsage = Database::fetchOne(
-        "SELECT COUNT(*) AS count FROM organization_repository_settings
+        "SELECT COUNT(*) AS count FROM mirror.organization_repository_settings
          WHERE use_local_mirror = TRUE"
     );
 
