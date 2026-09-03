@@ -29,15 +29,14 @@ CATALOG = [
     (12, 'core_conky.sh',            'Configuracao de Conky',            'Configura o Conky (monitor de sistema no desktop) com perfil dinamico via JSON.'),
     (13, 'core_config.sh',           'Configuracoes Adicionais',         'Configuracoes diversas do sistema (sysctl, limits, etc).'),
     (14, 'core_branding.sh',         'Identidade Visual (Branding)',     'Aplica wallpaper, logo, tema GTK e branding da OM.'),
-    (15, 'core_sync.sh',             'Sincronizacao de Configuracao',   'Instala o aplicador periodico de politicas da OM e seu timer systemd.'),
-    (16, 'core_logon.sh',            'Script de Logon Persistente',      'Script executado a cada logon de usuario (multi-DE).'),
-    (17, 'core_password_change.sh',  'Alteracao de Senha',               'Configura a alteracao de senha do usuario no dominio.'),
-    (18, 'core_logoff.sh',           'Script de Logoff Persistente',     'Script executado a cada logoff de usuario.'),
-    (19, 'core_session_lightdm.sh',  'Sessao LightDM',                   'Configura LightDM como display manager (autoselecao via DISPLAY_MANAGER=lightdm).'),
-    (20, 'core_session_gdm3.sh',     'Sessao GDM3',                      'Configura GDM3 como display manager (autoselecao via DISPLAY_MANAGER=gdm3).'),
-    (21, 'core_session_sddm.sh',     'Sessao SDDM',                      'Configura SDDM como display manager (autoselecao via DISPLAY_MANAGER=sddm).'),
-    (22, 'core_agent.sh',            'Agente SeederLinux',               'Instala e configura o agente SeederLinux.'),
-    (23, 'core_proxy.sh',            'Configuracao de Proxy',            'Configura proxy corporativo no sistema (apt, curl, wget, env).'),
+    (15, 'core_logon.sh',            'Script de Logon Persistente',      'Script executado a cada logon de usuario (multi-DE).'),
+    (16, 'core_password_change.sh',  'Alteracao de Senha',               'Configura a alteracao de senha do usuario no dominio.'),
+    (17, 'core_logoff.sh',           'Script de Logoff Persistente',     'Script executado a cada logoff de usuario.'),
+    (18, 'core_session_lightdm.sh',  'Sessao LightDM',                   'Configura LightDM como display manager (autoselecao via DISPLAY_MANAGER=lightdm).'),
+    (19, 'core_session_gdm3.sh',     'Sessao GDM3',                      'Configura GDM3 como display manager (autoselecao via DISPLAY_MANAGER=gdm3).'),
+    (20, 'core_session_sddm.sh',     'Sessao SDDM',                      'Configura SDDM como display manager (autoselecao via DISPLAY_MANAGER=sddm).'),
+    (21, 'core_agent.sh',            'Agente SeederLinux',               'Instala e configura o agente SeederLinux.'),
+    (22, 'core_proxy.sh',            'Configuracao de Proxy',            'Configura proxy corporativo no sistema (apt, curl, wget, env).'),
 ]
 
 def escape_sql_literal(s: str) -> str:
@@ -117,7 +116,7 @@ def main():
 
     footer = """
 -- ============================================================================
--- FIM: 23 scripts core inseridos.
+-- FIM: 22 scripts core inseridos.
 -- Ordem de execucao:
 --   01 core_dns.sh              (configura DNS ANTES de apt-get update)
 --   02 core_repositories.sh     (agora tem DNS resolvendo)
@@ -133,13 +132,12 @@ def main():
 --   12 core_conky.sh
 --   13 core_config.sh
 --   14 core_branding.sh
---   15 core_sync.sh
---   16 core_logon.sh
---   17 core_password_change.sh
---   18 core_logoff.sh
---   19 core_session_{lightdm|gdm3|sddm}.sh   (bundle mantem apenas 1 conforme DISPLAY_MANAGER)
---   22 core_agent.sh
---   23 core_proxy.sh
+--   15 core_logon.sh
+--   16 core_password_change.sh
+--   17 core_logoff.sh
+--   18 core_session_{lightdm|gdm3|sddm}.sh   (bundle mantem apenas 1 conforme DISPLAY_MANAGER)
+--   21 core_agent.sh
+--   22 core_proxy.sh
 -- ============================================================================
 """
     parts.append(footer)

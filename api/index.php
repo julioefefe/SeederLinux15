@@ -1932,37 +1932,13 @@ function handleGenerateBundle($input) {
 }
 
 function handleDownloadBundle($id) {
-    $stationOrganizationId = null;
-    $headers = function_exists('getallheaders') ? getallheaders() : [];
-    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-
-    if (preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
-        $stationToken = trim($matches[1]);
-        $station = Database::fetchOne(
-            "SELECT organization_id FROM stations WHERE token = ?",
-            [$stationToken]
-        );
-        if ($station) {
-            $stationOrganizationId = (int)$station['organization_id'];
-        }
-    }
-
-    if ($stationOrganizationId === null) {
-        requireAuth();
-    }
-
+    requireAuth();
     $bundle = Database::fetchOne("SELECT id, organization_id, filename, content FROM deploy_bundles WHERE id = ?", [$id]);
     if (!$bundle) jsonError('Bundle nao encontrado', 404);
 
-    if ($stationOrganizationId !== null) {
-        if ((int)$bundle['organization_id'] !== $stationOrganizationId) {
-            jsonError('Sem permissao', 403);
-        }
-    } else {
-        $userOrgId = getUserOrgId();
-        if ($userOrgId !== null && !isAdminGap() && (int)$bundle['organization_id'] !== $userOrgId) {
-            jsonError('Sem permissao', 403);
-        }
+    $userOrgId = getUserOrgId();
+    if ($userOrgId !== null && !isAdminGap() && (int)$bundle['organization_id'] !== $userOrgId) {
+        jsonError('Sem permissao', 403);
     }
 
     header('Content-Type: application/octet-stream');
@@ -3218,15 +3194,14 @@ function handleResetScriptOrder() {
         'core_conky.sh'            => 12,
         'core_config.sh'           => 13,
         'core_branding.sh'         => 14,
-        'core_sync.sh'             => 15,
-        'core_logon.sh'            => 16,
-        'core_password_change.sh'  => 17,
-        'core_logoff.sh'           => 18,
-        'core_session_lightdm.sh'  => 19,
-        'core_session_gdm3.sh'     => 20,
-        'core_session_sddm.sh'     => 21,
-        'core_agent.sh'            => 22,
-        'core_proxy.sh'            => 23,
+        'core_logon.sh'            => 15,
+        'core_password_change.sh'  => 16,
+        'core_logoff.sh'           => 17,
+        'core_session_lightdm.sh'  => 18,
+        'core_session_gdm3.sh'     => 19,
+        'core_session_sddm.sh'     => 20,
+        'core_agent.sh'            => 21,
+        'core_proxy.sh'            => 22,
     ];
 
     Database::beginTransaction();

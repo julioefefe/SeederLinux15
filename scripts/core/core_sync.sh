@@ -83,7 +83,7 @@ source "$CONFIG_FILE"
 # formas, nessa ordem de prioridade:
 #   1) primeiro argumento posicional nao-flag (ex: seeder-sync 15)
 #   2) variavel de ambiente SERIAL_CONFIG (ex: SERIAL_CONFIG=15 seeder-sync)
-#   3) arquivo /etc/seederlinux/server-serial.env (SERVER_SERIAL=15),
+#   3) arquivo /etc/seederlinux/server-serial.env (SERIAL_CONFIG=15),
 #      que o agent.py pode escrever apos um check-in bem-sucedido
 #
 # Sem nenhuma dessas fontes, nao ha como comparar - o script roda
@@ -98,15 +98,12 @@ for arg in "$@"; do
     esac
 done
 
-if [ -z "$SERVER_SERIAL" ] && [ -f /etc/seederlinux/server-serial.env ]; then
-    # shellcheck disable=SC1090
-    SERVER_SERIAL="$(grep -m1 '^SERVER_SERIAL=' /etc/seederlinux/server-serial.env 2>/dev/null | cut -d= -f2- | tr -d '"')"
-    if [ -z "$SERVER_SERIAL" ]; then
-        SERVER_SERIAL="$(grep -m1 '^SERIAL_CONFIG=' /etc/seederlinux/server-serial.env 2>/dev/null | cut -d= -f2- | tr -d '"')"
-    fi
-fi
 if [ -z "$SERVER_SERIAL" ] && [ -n "${SERIAL_CONFIG:-}" ]; then
     SERVER_SERIAL="$SERIAL_CONFIG"
+fi
+if [ -z "$SERVER_SERIAL" ] && [ -f /etc/seederlinux/server-serial.env ]; then
+    # shellcheck disable=SC1090
+    SERVER_SERIAL="$(grep -m1 '^SERIAL_CONFIG=' /etc/seederlinux/server-serial.env 2>/dev/null | cut -d= -f2- | tr -d '"')"
 fi
 
 SERIAL_APLICADO_ATUAL="${SERIAL_APLICADO:-0}"
@@ -659,25 +656,6 @@ if [ -n "$SERVER_SERIAL" ]; then
     fi
     SERIAL_APLICADO_ATUAL="$SERVER_SERIAL"
     echo "SERIAL_APLICADO atualizado para $SERVER_SERIAL"
-fi
-
-# ============================================================
-# Confirmar no servidor o serial aplicado com sucesso
-# ============================================================
-STATION_TOKEN_FILE="/etc/seeder/station_token"
-if [ -n "$SERVER_SERIAL" ] && [ -s "$STATION_TOKEN_FILE" ] && command -v curl &>/dev/null; then
-    STATION_TOKEN="$(tr -d '[:space:]' < "$STATION_TOKEN_FILE")"
-    SYNC_CONFIRM_URL="${SEEDER_SERVER%/}/api/?action=sync-confirm"
-    if curl -fsS --max-time 30 -X POST \
-        -H "Content-Type: application/json" \
-        --data "{\"station_token\":\"${STATION_TOKEN}\",\"serial_aplicado\":${SERVER_SERIAL}}" \
-        "$SYNC_CONFIRM_URL" >/dev/null 2>&1; then
-        echo "Serial $SERVER_SERIAL confirmado no servidor"
-    else
-        echo "AVISO: falha ao confirmar serial $SERVER_SERIAL no servidor"
-    fi
-elif [ -n "$SERVER_SERIAL" ]; then
-    echo "AVISO: token da estacao ou curl indisponivel; confirmacao nao enviada"
 fi
 
 # ============================================================
