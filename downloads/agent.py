@@ -34,6 +34,7 @@ Cron (recomendado a cada 15 minutos):
 """
 
 import argparse
+import fcntl
 import json
 import os
 import sys
@@ -54,8 +55,55 @@ TOKEN_FILE = os.path.join(CONFIG_DIR, "station_token")
 LOG_FILE = "/var/log/seeder/agent.log"
 BUNDLE_CACHE_DIR = "/var/cache/seeder"
 BUNDLE_FILE = os.path.join(BUNDLE_CACHE_DIR, "bundle.sh")
+LOCK_FILE = "/var/run/seeder-agent.lock"
 CHECKIN_TIMEOUT = 30
 DOWNLOAD_TIMEOUT = 60
+
+
+class SingleInstanceLock:
+    """
+    Impede que duas execucoes do agente rodem ao mesmo tempo.
+
+    O cron dispara a cada 15min, mas execute_bundle() pode levar ate
+    30min (timeout=1800) rodando de forma sincrona - ou seja, o tempo
+    maximo permitido para uma execucao E MAIOR que o intervalo entre
+    execucoes. Sem essa trava, um bundle demorado (ex: instalacao de
+    pacotes lenta, ingresso AD com timeout de rede) pode ainda estar
+    rodando quando o proximo cron dispara, resultando em duas
+    execucoes do bundle simultaneas - dois apt-get disputando o lock
+    do dpkg, dois `realm join` ao mesmo tempo, etc.
+
+    Usa fcntl.flock em vez de um PID-file simples verificado "na mao":
+    flock e liberado automaticamente pelo kernel quando o processo
+    morre (mesmo com kill -9 ou crash), entao nao ha risco de lock
+    "preso" sobrevivendo a um agente que morreu sem limpar depois de
+    si - um problema classico de implementacoes de PID-file manuais.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.fd = None
+
+    def acquire(self):
+        self.fd = open(self.path, "w")
+        try:
+            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            self.fd.close()
+            self.fd = None
+            return False
+        self.fd.write(str(os.getpid()))
+        self.fd.flush()
+        return True
+
+    def release(self):
+        if self.fd is not None:
+            try:
+                fcntl.flock(self.fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            self.fd.close()
+            self.fd = None
 
 
 def log(message, level="INFO"):
@@ -243,11 +291,21 @@ def execute_bundle(bundle_path):
     try:
         os.chmod(bundle_path, 0o755)
         log(f"Executando bundle: {bundle_path}")
+        # NON_INTERACTIVE=true e essencial aqui: o bundle roda via cron,
+        # sem TTY. Varios scripts core (core_dns.sh, core_domain.sh,
+        # core_repositories.sh, core_proxy.sh) tem prompts `read -p` de
+        # fallback para erros/decisoes. Sem NON_INTERACTIVE explicito,
+        # esses prompts dependiam do EOF acidental do stdin herdado do
+        # cron para nao travar - comportamento correto por acaso, nao
+        # por garantia. Setando explicitamente fecha essa brecha.
+        env = os.environ.copy()
+        env["NON_INTERACTIVE"] = "true"
         result = subprocess.run(
             ["bash", bundle_path],
             capture_output=True,
             text=True,
             timeout=1800,
+            env=env,
         )
         if result.returncode == 0:
             log("Bundle executado com sucesso")
@@ -301,6 +359,22 @@ Exemplos:
         log("ERRO: Este script deve ser executado como root (sudo).", "ERROR")
         sys.exit(1)
 
+    # Trava contra execucao simultanea (ver SingleInstanceLock acima).
+    # Se ja houver um agente rodando, este ciclo e pulado sem erro -
+    # o proximo disparo do cron (em 15min) tenta de novo normalmente.
+    lock = SingleInstanceLock(LOCK_FILE)
+    if not lock.acquire():
+        log("Outra execucao do seeder-agent ja esta em andamento "
+            "(lock ocupado). Pulando este ciclo.", "WARNING")
+        return 0
+
+    try:
+        return run_agent(args)
+    finally:
+        lock.release()
+
+
+def run_agent(args):
     log("=" * 60)
     log("SeederLinux Agent 1.2.0 - Iniciando")
 
