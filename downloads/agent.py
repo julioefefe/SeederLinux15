@@ -52,6 +52,8 @@ from urllib.error import URLError, HTTPError
 CONFIG_DIR = "/etc/seeder"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "agent.conf")
 TOKEN_FILE = os.path.join(CONFIG_DIR, "station_token")
+LOCAL_CONFIG_FILE = "/etc/seederlinux/config.env"
+SERVER_SERIAL_FILE = "/etc/seederlinux/server-serial.env"
 LOG_FILE = "/var/log/seeder/agent.log"
 BUNDLE_CACHE_DIR = "/var/cache/seeder"
 BUNDLE_FILE = os.path.join(BUNDLE_CACHE_DIR, "bundle.sh")
@@ -161,6 +163,31 @@ def save_token(token):
         log("Token da estação salvo com sucesso")
     except (IOError, PermissionError) as e:
         log(f"Erro ao salvar token: {e}", "ERROR")
+
+
+def load_applied_serial():
+    """Lê o último serial aplicado do arquivo de configuração local."""
+    try:
+        with open(LOCAL_CONFIG_FILE, "r") as f:
+            for line in f:
+                if line.startswith("SERIAL_APLICADO="):
+                    value = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    return int(value)
+    except (IOError, PermissionError, ValueError):
+        pass
+    return 0
+
+
+def save_server_serial(serial):
+    """Salva o serial atual do servidor para uso pelo seeder-sync."""
+    try:
+        os.makedirs(os.path.dirname(SERVER_SERIAL_FILE), exist_ok=True)
+        with open(SERVER_SERIAL_FILE, "w") as f:
+            f.write(f"SERVER_SERIAL={int(serial)}\n")
+        os.chmod(SERVER_SERIAL_FILE, 0o600)
+        log(f"Serial do servidor salvo: {int(serial)}")
+    except (IOError, PermissionError, ValueError) as e:
+        log(f"Erro ao salvar serial do servidor: {e}", "ERROR")
 
 
 def create_ssl_context(no_check=False):
@@ -408,6 +435,7 @@ def run_agent(args):
 
     # Montar payload
     payload = system_info.copy()
+    payload["serial_aplicado"] = load_applied_serial()
     if is_first_run:
         payload["organization_acronym"] = args.org.upper()
         log(f"Primeiro check-in — registrando na organização: {args.org.upper()}")
@@ -469,6 +497,11 @@ def run_agent(args):
     # Executar bundle
     success = execute_bundle(BUNDLE_FILE)
     if success:
+        serial_config = data.get("serial_config")
+        if serial_config is not None:
+            save_server_serial(serial_config)
+        else:
+            log("Bundle concluído, mas resposta não trouxe serial_config", "WARNING")
         log("Provisionamento concluído com sucesso")
         return 0
     else:
