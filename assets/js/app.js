@@ -4,6 +4,8 @@
  */
 
 // API helper with absolute path from root
+let csrfToken = '';
+
 const API = {
     baseUrl: '/api/',
 
@@ -30,7 +32,8 @@ const API = {
         const options = {
             method,
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
             },
             credentials: 'same-origin'
         };
@@ -42,7 +45,14 @@ const API = {
         try {
             const response = await fetch(url, options);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                let message = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorBody = await response.json();
+                    message = errorBody.error || errorBody.message || message;
+                } catch (parseError) {
+                    // Keep the HTTP status when the server did not return JSON.
+                }
+                throw new Error(message);
             }
             return response.json();
         } catch (error) {
@@ -70,7 +80,8 @@ const API = {
 
     async postMultipart(action, formData) {
         const url = this.buildUrl(action);
-        const res = await fetch(url, { method: 'POST', body: formData, credentials: 'same-origin' });
+        const headers = csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
+        const res = await fetch(url, { method: 'POST', body: formData, headers, credentials: 'same-origin' });
         return res.json();
     }
 };

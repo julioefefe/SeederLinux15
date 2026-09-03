@@ -78,59 +78,47 @@ try {
             handleMirrorStatus();
             break;
         case 'mirror-save-config':
-            requireAuth();
-            if (($_SESSION['role'] ?? null) !== 'admin_gap') {
-                jsonError('Acesso restrito ao administrador GAP', 403);
-            }
-            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorSaveConfig($input);
             break;
         case 'mirror-save-org-settings':
-            requireAuth();
-            if (($_SESSION['role'] ?? null) !== 'admin_gap') {
-                jsonError('Acesso restrito ao administrador GAP', 403);
-            }
-            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorSaveOrgSettings($input);
             break;
         case 'mirror-estimate':
-            requireAuth();
-            if (($_SESSION['role'] ?? null) !== 'admin_gap') {
-                jsonError('Acesso restrito ao administrador GAP', 403);
-            }
-            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorEstimate($input);
             break;
         case 'mirror-add-distro':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorAddDistro($input);
             break;
         case 'mirror-update-distro':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorUpdateDistro($input);
             break;
         case 'mirror-toggle-distro':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorToggleDistro($input);
             break;
         case 'mirror-add-version':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorAddVersion($input);
             break;
         case 'mirror-update-version':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorUpdateVersion($input);
             break;
         case 'mirror-toggle-version':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorToggleVersion($input);
             break;
         case 'mirror-delete-version':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorDeleteVersion($input);
             break;
         case 'mirror-sync-now':
-            requireMirrorAdmin($method, 'POST');
+            requireMirrorAdmin($method, 'POST', $input);
             handleMirrorSyncNow();
             break;
 
@@ -484,7 +472,7 @@ function handleLogin($input) {
             'organization_acronym' => $org['acronym'] ?? null
         ]);
 
-        jsonSuccess([
+            jsonSuccess([
             'id' => $user['id'],
             'username' => $user['username'],
             'full_name' => $user['full_name'],
@@ -529,7 +517,8 @@ function handleSessionCheck() {
             'role' => $_SESSION['role'],
             'organization_id' => $_SESSION['organization_id'],
             'org_acronym' => $org['acronym'] ?? null,
-            'org_name' => $org['name'] ?? null
+            'org_name' => $org['name'] ?? null,
+            'csrf_token' => getCsrfToken()
         ], 'Sessao ativa');
     }
     jsonResponse(['success' => false, 'error' => 'Not authenticated'], 200);
@@ -621,20 +610,30 @@ function handleMirrorStatus() {
         'organization_settings' => $organizationSettings,
         'organization_usage' => (int)($organizationUsage['count'] ?? 0),
         'last_job_status' => $lastJob['status'] ?? null,
-        'jobs' => $jobs,
+            'jobs' => $jobs,
     ]);
 }
 
-function requireMirrorAdmin($method, $expectedMethod = 'POST') {
+function requireMirrorAdmin($method, $expectedMethod = 'POST', $input = []) {
     requireAuth();
     if (($_SESSION['role'] ?? null) !== 'admin_gap') {
         jsonError('Acesso restrito ao administrador GAP', 403);
     }
     if ($method !== $expectedMethod) jsonError('Method not allowed', 405);
+    requireCsrfToken($input);
 }
 
 function mirrorCatalogStatus($status) {
     return in_array($status, ['old', 'current', 'future'], true) ? $status : null;
+}
+
+function mirrorInputId($input, $keys) {
+    foreach ($keys as $key) {
+        if (isset($input[$key]) && $input[$key] !== '') {
+            return filter_var($input[$key], FILTER_VALIDATE_INT);
+        }
+    }
+    return false;
 }
 
 function handleMirrorAddDistro($input) {
@@ -653,7 +652,7 @@ function handleMirrorAddDistro($input) {
 }
 
 function handleMirrorUpdateDistro($input) {
-    $id = filter_var($input['distro_id'] ?? null, FILTER_VALIDATE_INT);
+    $id = mirrorInputId($input, ['distro_id', 'id']);
     $name = sanitizeInput($input['name'] ?? '');
     $codename = sanitizeInput($input['codename'] ?? '');
     $baseId = ($input['base_distro_id'] ?? '') === '' || $input['base_distro_id'] === null ? null : filter_var($input['base_distro_id'], FILTER_VALIDATE_INT);
@@ -665,7 +664,7 @@ function handleMirrorUpdateDistro($input) {
 }
 
 function handleMirrorToggleDistro($input) {
-    $id = filter_var($input['distro_id'] ?? null, FILTER_VALIDATE_INT);
+    $id = mirrorInputId($input, ['distro_id', 'id']);
     if ($id === false || $id < 1) jsonError('Distro invalida');
     $distro = Database::fetchOne('SELECT active FROM mirror.distros WHERE id = ?', [$id]);
     if (!$distro) jsonError('Distro nao encontrada', 404);
@@ -675,7 +674,7 @@ function handleMirrorToggleDistro($input) {
 }
 
 function handleMirrorAddVersion($input) {
-    $distroId = filter_var($input['distro_id'] ?? null, FILTER_VALIDATE_INT);
+    $distroId = mirrorInputId($input, ['distro_id', 'distro']);
     $version = sanitizeInput($input['version'] ?? '');
     $status = mirrorCatalogStatus(sanitizeInput($input['status'] ?? 'current'));
     if ($distroId === false || $distroId < 1 || $version === '' || $status === null) jsonError('Dados da versao invalidos');
@@ -690,7 +689,7 @@ function handleMirrorAddVersion($input) {
 }
 
 function handleMirrorUpdateVersion($input) {
-    $id = filter_var($input['version_id'] ?? null, FILTER_VALIDATE_INT);
+    $id = mirrorInputId($input, ['version_id', 'id']);
     $version = sanitizeInput($input['version'] ?? '');
     $status = mirrorCatalogStatus(sanitizeInput($input['status'] ?? ''));
     if ($id === false || $id < 1 || $version === '' || $status === null) jsonError('Dados da versao invalidos');
@@ -699,7 +698,7 @@ function handleMirrorUpdateVersion($input) {
 }
 
 function handleMirrorToggleVersion($input) {
-    $id = filter_var($input['version_id'] ?? null, FILTER_VALIDATE_INT);
+    $id = mirrorInputId($input, ['version_id', 'id']);
     if ($id === false || $id < 1) jsonError('Versao invalida');
     $version = Database::fetchOne('SELECT active FROM mirror.versions WHERE id = ?', [$id]);
     if (!$version) jsonError('Versao nao encontrada', 404);
@@ -709,7 +708,7 @@ function handleMirrorToggleVersion($input) {
 }
 
 function handleMirrorDeleteVersion($input) {
-    $id = filter_var($input['version_id'] ?? null, FILTER_VALIDATE_INT);
+    $id = mirrorInputId($input, ['version_id', 'id']);
     if ($id === false || $id < 1) jsonError('Versao invalida');
     Database::execute('DELETE FROM mirror.versions WHERE id = ?', [$id]);
     jsonSuccess(null, 'Versao removida');

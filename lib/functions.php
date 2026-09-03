@@ -17,6 +17,28 @@ function sanitizeInput($str) {
     return trim($str ?? '');
 }
 
+function getCsrfToken() {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function requireCsrfToken($input = []) {
+    $headers = function_exists('getallheaders') ? getallheaders() : [];
+    $headerToken = '';
+    foreach ($headers as $name => $value) {
+        if (strtolower($name) === 'x-csrf-token') {
+            $headerToken = $value;
+            break;
+        }
+    }
+    $token = $headerToken ?: ($input['csrf_token'] ?? '');
+    if (!is_string($token) || !hash_equals(getCsrfToken(), $token)) {
+        jsonError('Token CSRF ausente ou invalido', 400);
+    }
+}
+
 function requireAuth() {
     // 1. Verificar token Bearer
     $headers = function_exists('getallheaders') ? getallheaders() : [];

@@ -222,6 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const session = await API.get('session');
         if (!session.success) { location.href = '/login.html'; return; }
         currentUser = session.data;
+        csrfToken = session.data?.csrf_token || '';
         applyRolePermissions();
         await loadDashboard();
         await loadOrganizations();
