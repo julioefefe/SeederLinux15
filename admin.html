@@ -30,6 +30,10 @@
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                         Organizacoes
                     </button>
+                    <button id="nav-mirror" class="nav-item hidden" data-view="mirror" onclick="showView('mirror')">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16M8 4v3m8-3v3m-8 5v3m8-3v3m-8 5v3m8-3v3"/></svg>
+                        Mirror
+                    </button>
                     <button id="nav-scripts-core" class="nav-item" data-view="scripts-core" onclick="showView('scripts-core')">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
                         Scripts Core
@@ -184,6 +188,42 @@
                         <input type="text" id="orgs-search" placeholder="Buscar organizacao..." class="form-input" style="max-width: 400px;">
                     </div>
                     <div class="grid gap-4" id="orgs-cards-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));"></div>
+                </div>
+
+                <!-- Mirror Administration View -->
+                <div id="view-mirror" class="hidden">
+                    <div class="mirror-grid mirror-grid-top">
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h3 class="card-title">Status geral do mirror</h3><p class="page-subtitle">Configuração global do serviço local</p></div>
+                                <span id="mirror-last-job" class="badge badge-secondary">Sem sincronização</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="mirror-form-grid">
+                                    <div class="mirror-setting-row"><div><label for="mirror-enabled" class="form-label">Ativar Mirror</label><span class="mirror-help">Disponível para as OMs habilitadas</span></div><label class="toggle-switch"><input id="mirror-enabled" type="checkbox"><span class="toggle-slider"></span></label></div>
+                                    <div class="form-group"><label for="mirror-tool" class="form-label">Ferramenta</label><select id="mirror-tool" class="form-select"><option value="aptly">aptly</option><option value="apt-mirror">apt-mirror</option></select></div>
+                                    <div class="form-group"><label for="mirror-base-path" class="form-label">Caminho base</label><input id="mirror-base-path" class="form-input" type="text" maxlength="255"></div>
+                                    <div class="mirror-setting-row"><div><label for="mirror-verify-gpg" class="form-label">Verificar GPG</label><span class="mirror-help">Valida assinaturas dos repositórios</span></div><input id="mirror-verify-gpg" type="checkbox" class="mirror-checkbox"></div>
+                                    <div class="form-group"><label for="mirror-interval" class="form-label">Intervalo de sincronização (horas)</label><input id="mirror-interval" class="form-input" type="number" min="1" max="8760" step="1"></div>
+                                </div>
+                                <div class="mirror-actions"><button id="btn-save-mirror-config" type="button" class="btn btn-primary">Salvar configuração</button></div>
+                            </div>
+                        </div>
+                        <div class="card mirror-capacity-card">
+                            <div class="card-header"><h3 class="card-title">Viabilidade</h3><span id="mirror-capacity-state" class="badge badge-info">Carregando</span></div>
+                            <div class="card-body">
+                                <div class="mirror-capacity-grid"><div><span class="mirror-metric-label">Livre</span><strong id="mirror-free-space">-</strong><span class="mirror-metric-unit">GB</span></div><div><span class="mirror-metric-label">Total</span><strong id="mirror-total-space">-</strong><span class="mirror-metric-unit">GB</span></div><div><span class="mirror-metric-label">Estimado</span><strong id="mirror-estimated-space">-</strong><span class="mirror-metric-unit">GB</span></div></div>
+                                <div id="mirror-capacity-alert" class="mirror-capacity-alert hidden" role="alert"></div>
+                                <button id="btn-estimate-mirror" type="button" class="btn btn-secondary">Calcular estimativa</button>
+                                <p id="mirror-estimate-message" class="mirror-help">A estimativa usa a seleção de distros, arquiteturas e componentes abaixo.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mirror-grid mirror-grid-bottom">
+                        <div class="card"><div class="card-header"><div><h3 class="card-title">Catálogo de distros e versões</h3><p class="page-subtitle">Selecione o que deverá ser espelhado</p></div></div><div id="mirror-distros-list" class="card-body mirror-distros-list"></div></div>
+                        <div class="card"><div class="card-header"><h3 class="card-title">Arquiteturas e componentes</h3></div><div class="card-body"><h4 class="mirror-section-label">Arquiteturas</h4><div id="mirror-architectures" class="mirror-chip-group"></div><h4 class="mirror-section-label">Componentes</h4><div id="mirror-components" class="mirror-chip-group"></div></div></div>
+                    </div>
+                    <div class="card mirror-org-card"><div class="card-header"><div><h3 class="card-title">Organizações (OMs)</h3><p class="page-subtitle">Defina quais OMs usarão o mirror local</p></div><span id="mirror-org-usage" class="badge badge-info">0 OMs</span></div><div class="card-body table-wrapper"><table><thead><tr><th>OM</th><th>Usar mirror local</th><th>Prioridade</th><th class="text-right">Ação</th></tr></thead><tbody id="mirror-orgs-tbody"></tbody></table></div></div>
                 </div>
 
                 <!-- OM Detail: Dashboard + Config tabs -->

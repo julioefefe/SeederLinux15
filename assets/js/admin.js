@@ -362,6 +362,8 @@ function applyRolePermissions() {
         const el = document.getElementById(id);
         if (el) el.classList.toggle('hidden', role !== 'admin_gap');
     });
+    const mirrorNav = document.getElementById('nav-mirror');
+    if (mirrorNav) mirrorNav.classList.toggle('hidden', role !== 'admin_gap');
 
     ['nav-audit'].forEach(id => {
         const el = document.getElementById(id);
@@ -381,7 +383,7 @@ function applyRolePermissions() {
 // ============ VIEW MANAGEMENT ============
 
 function showView(viewName) {
-    ['view-dashboard', 'view-organizations', 'view-om-detail', 'view-scripts-core', 'view-users', 'view-stations', 'view-audit'].forEach(id => {
+    ['view-dashboard', 'view-organizations', 'view-mirror', 'view-om-detail', 'view-scripts-core', 'view-users', 'view-stations', 'view-audit'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -394,6 +396,7 @@ function showView(viewName) {
     const titles = {
         dashboard: ['Dashboard', 'Visao geral do sistema'],
         organizations: ['Organizacoes', 'Dashboard de Organizacoes Militares'],
+        mirror: ['Mirror', 'Repositorios APT locais para as OMs'],
         'scripts-core': ['Scripts Core', 'Scripts do sistema'],
         users: ['Usuarios', 'Gerenciamento de usuarios'],
         stations: ['Estacoes', 'Maquinas registradas'],
@@ -411,6 +414,7 @@ function showView(viewName) {
     switch (viewName) {
         case 'dashboard': loadDashboard(); break;
         case 'organizations': loadOrganizationsDashboard(); break;
+        case 'mirror': loadMirror(); break;
         case 'users': loadUsers(); break;
         case 'scripts-core': loadAllScripts(); break;
         case 'stations': loadStations(); break;
@@ -418,6 +422,159 @@ function showView(viewName) {
     }
 }
 window.showView = showView;
+
+// ============ MIRROR ADMINISTRATION ============
+
+const mirrorArchitectures = ['amd64', 'i386', 'arm64'];
+const mirrorComponents = ['main', 'contrib', 'non-free', 'restricted', 'universe'];
+
+function renderMirrorOptions() {
+    const architectureEl = document.getElementById('mirror-architectures');
+    const componentEl = document.getElementById('mirror-components');
+    if (architectureEl && !architectureEl.children.length) {
+        architectureEl.innerHTML = mirrorArchitectures.map((name, index) => `
+            <label class="mirror-chip"><input type="checkbox" data-mirror-architecture value="${name}" ${index === 0 ? 'checked' : ''}><span>${name}</span></label>
+        `).join('');
+    }
+    if (componentEl && !componentEl.children.length) {
+        componentEl.innerHTML = mirrorComponents.map((name, index) => `
+            <label class="mirror-chip"><input type="checkbox" data-mirror-component value="${name}" ${index === 0 ? 'checked' : ''}><span>${name}</span></label>
+        `).join('');
+    }
+}
+
+function renderMirrorDistros(distros) {
+    const container = document.getElementById('mirror-distros-list');
+    if (!container) return;
+    if (!distros.length) {
+        container.innerHTML = '<p class="text-slate-400">Nenhuma distro ativa no catálogo.</p>';
+        return;
+    }
+    container.innerHTML = distros.map(distro => `
+        <div class="mirror-distro-block">
+            <div class="mirror-distro-heading">
+                <label class="mirror-check-label"><input type="checkbox" data-mirror-distro value="${distro.id}" checked><strong>${Utils.escapeHtml(distro.name)} ${Utils.escapeHtml(distro.codename)}</strong></label>
+                ${distro.base_distro ? `<span class="mirror-base-relation">Base: ${Utils.escapeHtml(distro.base_distro.name)} ${Utils.escapeHtml(distro.base_distro.codename)}</span>` : ''}
+            </div>
+            <div class="mirror-version-list">
+                ${(distro.versions || []).map(version => `<label class="mirror-version"><input type="checkbox" data-mirror-version data-distro-id="${distro.id}" value="${version.id}" checked><span>${Utils.escapeHtml(version.version)}</span><span class="badge ${version.status === 'current' ? 'badge-success' : version.status === 'future' ? 'badge-info' : 'badge-secondary'}">${Utils.escapeHtml(version.status)}</span></label>`).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderMirrorOrganizations(settings) {
+    const body = document.getElementById('mirror-orgs-tbody');
+    if (!body) return;
+    body.innerHTML = settings.length ? settings.map(org => `
+        <tr>
+            <td><strong>${Utils.escapeHtml(org.acronym)}</strong><span class="mirror-org-name">${Utils.escapeHtml(org.name)}</span></td>
+            <td><label class="toggle-switch"><input type="checkbox" data-mirror-org-enabled="${org.id}" ${org.use_local_mirror === true || org.use_local_mirror === 't' ? 'checked' : ''}><span class="toggle-slider"></span></label></td>
+            <td><input class="form-input mirror-priority" type="number" min="0" max="10000" value="${org.mirror_priority !== null && org.mirror_priority !== undefined ? Number(org.mirror_priority) : 100}" data-mirror-org-priority="${org.id}"></td>
+            <td class="text-right"><button type="button" class="btn btn-secondary btn-sm" onclick="saveMirrorOrgSetting(${org.id})">Salvar</button></td>
+        </tr>
+    `).join('') : '<tr><td colspan="4" class="text-center text-slate-400">Nenhuma OM ativa.</td></tr>';
+}
+
+async function loadMirror() {
+    if (currentUser?.role !== 'admin_gap') return;
+    renderMirrorOptions();
+    try {
+        const res = await API.get('mirror-status');
+        if (!res.success) throw new Error(res.error || 'Falha ao carregar o Mirror');
+        const data = res.data || {};
+        document.getElementById('mirror-enabled').checked = Boolean(data.enabled);
+        document.getElementById('mirror-tool').value = data.tool || 'aptly';
+        document.getElementById('mirror-base-path').value = data.mirror_base_path || '';
+        document.getElementById('mirror-verify-gpg').checked = Boolean(data.verify_gpg);
+        document.getElementById('mirror-interval').value = data.sync_interval_hours || 24;
+        document.getElementById('mirror-free-space').textContent = Number(data.disk_free_gb || 0).toFixed(2);
+        document.getElementById('mirror-total-space').textContent = Number(data.disk_total_gb || 0).toFixed(2);
+        document.getElementById('mirror-org-usage').textContent = `${data.organization_usage || 0} OM(s) ativas`;
+        const lastJob = document.getElementById('mirror-last-job');
+        if (lastJob) {
+            lastJob.textContent = data.last_job_status ? `Último job: ${data.last_job_status}` : 'Sem sincronização';
+            lastJob.className = `badge ${data.last_job_status === 'success' ? 'badge-success' : data.last_job_status === 'error' ? 'badge-danger' : 'badge-secondary'}`;
+        }
+        renderMirrorDistros(data.available_distros || []);
+        renderMirrorOrganizations(data.organization_settings || []);
+        updateMirrorCapacity();
+    } catch (error) {
+        Toast.error(error.message || 'Não foi possível carregar o Mirror.');
+    }
+}
+
+function updateMirrorCapacity() {
+    const free = Number(document.getElementById('mirror-free-space')?.textContent);
+    const estimated = Number(document.getElementById('mirror-estimated-space')?.textContent);
+    const alert = document.getElementById('mirror-capacity-alert');
+    const state = document.getElementById('mirror-capacity-state');
+    if (!alert || !state || !Number.isFinite(free) || !Number.isFinite(estimated) || estimated <= 0) return;
+    const insufficient = estimated > free;
+    alert.textContent = insufficient ? 'Espaço livre insuficiente para esta seleção.' : 'Espaço livre suficiente para esta seleção.';
+    alert.classList.toggle('hidden', false);
+    alert.classList.toggle('is-danger', insufficient);
+    alert.classList.toggle('is-success', !insufficient);
+    state.textContent = insufficient ? 'Atenção' : 'Viável';
+    state.className = `badge ${insufficient ? 'badge-danger' : 'badge-success'}`;
+}
+
+async function saveMirrorConfig() {
+    const button = document.getElementById('btn-save-mirror-config');
+    button.disabled = true;
+    try {
+        const res = await API.post('mirror-save-config', {
+            enabled: document.getElementById('mirror-enabled').checked,
+            tool: document.getElementById('mirror-tool').value,
+            mirror_base_path: document.getElementById('mirror-base-path').value.trim(),
+            verify_gpg: document.getElementById('mirror-verify-gpg').checked,
+            sync_interval_hours: Number(document.getElementById('mirror-interval').value)
+        });
+        if (!res.success) throw new Error(res.error || 'Falha ao salvar configuração');
+        Toast.success('Configuração global do Mirror salva.');
+    } catch (error) {
+        Toast.error(error.message || 'Não foi possível salvar a configuração.');
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function saveMirrorOrgSetting(organizationId) {
+    const enabled = document.querySelector(`[data-mirror-org-enabled="${organizationId}"]`);
+    const priority = document.querySelector(`[data-mirror-org-priority="${organizationId}"]`);
+    try {
+        const res = await API.post('mirror-save-org-settings', {
+            organization_id: organizationId,
+            use_local_mirror: enabled?.checked || false,
+            mirror_priority: Number(priority?.value || 100)
+        });
+        if (!res.success) throw new Error(res.error || 'Falha ao salvar preferência');
+        Toast.success('Preferência da OM salva.');
+        loadMirror();
+    } catch (error) {
+        Toast.error(error.message || 'Não foi possível salvar a preferência.');
+    }
+}
+window.saveMirrorOrgSetting = saveMirrorOrgSetting;
+
+async function estimateMirror() {
+    const payload = {
+        distros: [...document.querySelectorAll('[data-mirror-distro]:checked')].map(input => input.value),
+        versions: [...document.querySelectorAll('[data-mirror-version]:checked')].map(input => input.value),
+        architectures: [...document.querySelectorAll('[data-mirror-architecture]:checked')].map(input => input.value),
+        components: [...document.querySelectorAll('[data-mirror-component]:checked')].map(input => input.value)
+    };
+    try {
+        const res = await API.post('mirror-estimate', payload);
+        if (!res.success) throw new Error(res.error || 'Falha ao calcular estimativa');
+        const estimated = res.data?.estimated_gb;
+        document.getElementById('mirror-estimated-space').textContent = estimated == null ? '-' : Number(estimated).toFixed(2);
+        document.getElementById('mirror-estimate-message').textContent = res.data?.message || 'Estimativa atualizada.';
+        updateMirrorCapacity();
+    } catch (error) {
+        Toast.error(error.message || 'Não foi possível calcular a estimativa.');
+    }
+}
 
 // ============ OM VIEW SWITCHER ============
 
@@ -2981,6 +3138,8 @@ function setupEventListeners() {
     });
 
     document.getElementById('btn-save-public-theme')?.addEventListener('click', savePublicTheme);
+    document.getElementById('btn-save-mirror-config')?.addEventListener('click', saveMirrorConfig);
+    document.getElementById('btn-estimate-mirror')?.addEventListener('click', estimateMirror);
     document.getElementById('btn-save-vars')?.addEventListener('click', saveVariables);
     document.getElementById('btn-generate-bundle')?.addEventListener('click', generateBundle);
 

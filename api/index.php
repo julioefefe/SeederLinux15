@@ -77,6 +77,30 @@ try {
             if ($method !== 'GET') jsonError('Method not allowed', 405);
             handleMirrorStatus();
             break;
+        case 'mirror-save-config':
+            requireAuth();
+            if (($_SESSION['role'] ?? null) !== 'admin_gap') {
+                jsonError('Acesso restrito ao administrador GAP', 403);
+            }
+            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            handleMirrorSaveConfig($input);
+            break;
+        case 'mirror-save-org-settings':
+            requireAuth();
+            if (($_SESSION['role'] ?? null) !== 'admin_gap') {
+                jsonError('Acesso restrito ao administrador GAP', 403);
+            }
+            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            handleMirrorSaveOrgSettings($input);
+            break;
+        case 'mirror-estimate':
+            requireAuth();
+            if (($_SESSION['role'] ?? null) !== 'admin_gap') {
+                jsonError('Acesso restrito ao administrador GAP', 403);
+            }
+            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            handleMirrorEstimate($input);
+            break;
 
         // Organizations
 
@@ -498,22 +522,32 @@ function handleMirrorStatus() {
 
     $availableDistros = [];
     $distroRows = Database::fetchAll(
-        "SELECT d.id, d.name, d.codename, d.active, v.version, v.status
+        "SELECT d.id, d.name, d.codename, d.active, d.base_distro_id,
+            base.name AS base_name, base.codename AS base_codename,
+            v.id AS version_id, v.version, v.status
          FROM mirror.distros d
          LEFT JOIN mirror.versions v ON v.distro_id = d.id
+         LEFT JOIN mirror.distros base ON base.id = d.base_distro_id
          WHERE d.active = TRUE
          ORDER BY d.name, d.id, v.version"
     );
     foreach ($distroRows as $row) {
         if (!isset($availableDistros[$row['id']])) {
             $availableDistros[$row['id']] = [
+                'id' => (int)$row['id'],
                 'name' => $row['name'],
                 'codename' => $row['codename'],
+                'base_distro' => $row['base_distro_id'] ? [
+                    'id' => (int)$row['base_distro_id'],
+                    'name' => $row['base_name'],
+                    'codename' => $row['base_codename'],
+                ] : null,
                 'versions' => [],
             ];
         }
         if ($row['version'] !== null) {
             $availableDistros[$row['id']]['versions'][] = [
+                'id' => (int)$row['version_id'],
                 'version' => $row['version'],
                 'status' => $row['status'],
             ];
@@ -528,6 +562,15 @@ function handleMirrorStatus() {
         "SELECT COUNT(*) AS count FROM mirror.organization_repository_settings
          WHERE use_local_mirror = TRUE"
     );
+    $organizationSettings = Database::fetchAll(
+        "SELECT o.id, o.name, o.acronym,
+                COALESCE(s.use_local_mirror, FALSE) AS use_local_mirror,
+                COALESCE(s.mirror_priority, 100) AS mirror_priority
+         FROM public.organizations o
+         LEFT JOIN mirror.organization_repository_settings s ON s.organization_id = o.id
+         WHERE o.is_active = TRUE
+         ORDER BY o.acronym"
+    );
 
     jsonSuccess([
         'enabled' => filter_var($config['enabled'], FILTER_VALIDATE_BOOLEAN),
@@ -538,8 +581,99 @@ function handleMirrorStatus() {
         'disk_total_gb' => round((float)disk_total_space($mirrorPath) / 1073741824, 2),
         'disk_free_gb' => round((float)disk_free_space($mirrorPath) / 1073741824, 2),
         'available_distros' => array_values($availableDistros),
+        'organization_settings' => $organizationSettings,
         'organization_usage' => (int)($organizationUsage['count'] ?? 0),
         'last_job_status' => $lastJob['status'] ?? null,
+    ]);
+}
+
+function handleMirrorSaveConfig($input) {
+    $enabled = filter_var($input['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $verifyGpg = filter_var($input['verify_gpg'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $tool = sanitizeInput($input['tool'] ?? '');
+    $basePath = sanitizeInput($input['mirror_base_path'] ?? '');
+    $interval = filter_var($input['sync_interval_hours'] ?? null, FILTER_VALIDATE_INT);
+
+    if ($enabled === null || $verifyGpg === null) jsonError('Valores booleanos invalidos');
+    if (!in_array($tool, ['aptly', 'apt-mirror'], true)) jsonError('Ferramenta de mirror invalida');
+    if ($basePath === '' || strlen($basePath) > 255) jsonError('Caminho base invalido');
+    if ($interval === false || $interval < 1 || $interval > 8760) {
+        jsonError('Intervalo deve estar entre 1 e 8760 horas');
+    }
+
+    Database::execute(
+        "INSERT INTO mirror.config (id, enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, NOW())
+         ON CONFLICT (id) DO UPDATE SET
+             enabled = EXCLUDED.enabled,
+             tool = EXCLUDED.tool,
+             mirror_base_path = EXCLUDED.mirror_base_path,
+             verify_gpg = EXCLUDED.verify_gpg,
+             sync_interval_hours = EXCLUDED.sync_interval_hours,
+             updated_at = NOW()",
+        [$enabled, $tool, $basePath, $verifyGpg, $interval]
+    );
+
+    log_audit('UPDATE', 'mirror_config', 1, [
+        'enabled' => $enabled,
+        'tool' => $tool,
+        'mirror_base_path' => $basePath,
+        'verify_gpg' => $verifyGpg,
+        'sync_interval_hours' => $interval,
+    ]);
+    jsonSuccess(null, 'Configuracao global do mirror salva');
+}
+
+function handleMirrorSaveOrgSettings($input) {
+    $organizationId = filter_var($input['organization_id'] ?? null, FILTER_VALIDATE_INT);
+    $useLocalMirror = filter_var($input['use_local_mirror'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $priority = filter_var($input['mirror_priority'] ?? 100, FILTER_VALIDATE_INT);
+
+    if ($organizationId === false || $organizationId < 1) jsonError('Organizacao invalida');
+    if ($useLocalMirror === null) jsonError('Valor de mirror local invalido');
+    if ($priority === false || $priority < 0 || $priority > 10000) jsonError('Prioridade invalida');
+    if (!Database::fetchOne('SELECT id FROM public.organizations WHERE id = ? AND is_active = TRUE', [$organizationId])) {
+        jsonError('Organizacao nao encontrada', 404);
+    }
+
+    Database::execute(
+        "INSERT INTO mirror.organization_repository_settings
+             (organization_id, use_local_mirror, mirror_priority, updated_at)
+         VALUES (?, ?, ?, NOW())
+         ON CONFLICT (organization_id) DO UPDATE SET
+             use_local_mirror = EXCLUDED.use_local_mirror,
+             mirror_priority = EXCLUDED.mirror_priority,
+             updated_at = NOW()",
+        [$organizationId, $useLocalMirror, $priority]
+    );
+
+    // Futuramente, ativar uma OM deverá definir REPOSITORY_MODE=MIRROR e preencher
+    // automaticamente as variáveis REPOSITORY_*_URL correspondentes.
+    log_audit('UPDATE', 'mirror_org_settings', $organizationId, [
+        'use_local_mirror' => $useLocalMirror,
+        'mirror_priority' => $priority,
+    ], $organizationId);
+    jsonSuccess(null, 'Preferencia de mirror da OM salva');
+}
+
+function handleMirrorEstimate($input) {
+    $distros = is_array($input['distros'] ?? null) ? $input['distros'] : [];
+    $versions = is_array($input['versions'] ?? null) ? $input['versions'] : [];
+    $architectures = is_array($input['architectures'] ?? null) ? $input['architectures'] : [];
+    $components = is_array($input['components'] ?? null) ? $input['components'] : [];
+
+    $allowedArchitectures = ['amd64', 'i386', 'arm64'];
+    $allowedComponents = ['main', 'contrib', 'non-free', 'restricted', 'universe'];
+    $architectures = array_values(array_intersect($allowedArchitectures, $architectures));
+    $components = array_values(array_intersect($allowedComponents, $components));
+    $estimatedGb = round(
+        count($versions ?: $distros) * max(1, count($architectures)) * max(1, count($components)) * 0.25,
+        2
+    );
+
+    jsonSuccess([
+        'estimated_gb' => $estimatedGb,
+        'message' => 'Estimativa simplificada; o tamanho real sera calculado quando a sincronizacao for implementada.',
     ]);
 }
 
