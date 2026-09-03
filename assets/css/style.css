@@ -2066,11 +2066,18 @@ textarea[style*="background:#0a0f1a"] {
 .mirror-distro-block { border-bottom: 1px solid var(--border); padding-bottom: .85rem; }
 .mirror-distro-block:last-child { border-bottom: 0; padding-bottom: 0; }
 .mirror-distro-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.mirror-header-actions { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; }
+.mirror-catalog-tabs { display: flex; gap: .5rem; padding: .75rem 1.25rem 0; }
+.mirror-catalog-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin: .6rem 0 0 1.5rem; }
 .mirror-check-label, .mirror-version, .mirror-chip { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; color: var(--text); }
 .mirror-check-label input, .mirror-version input, .mirror-chip input { accent-color: var(--primary); }
 .mirror-base-relation { color: var(--text-dim); font-size: .75rem; }
 .mirror-version-list { display: flex; flex-wrap: wrap; gap: .5rem; margin: .65rem 0 0 1.5rem; }
-.mirror-version { border: 1px solid var(--border); border-radius: .4rem; padding: .35rem .55rem; font-size: .8rem; background: var(--bg-darker); }
+.mirror-version { display: flex; align-items: center; justify-content: space-between; gap: .65rem; border: 1px solid var(--border); border-radius: .4rem; padding: .35rem .55rem; font-size: .8rem; background: var(--bg-darker); }
+.mirror-version-label { display: inline-flex; align-items: center; gap: .45rem; }
+.mirror-version-actions { display: inline-flex; gap: .4rem; }
+.mirror-version-actions button { padding: 0; border: 0; background: transparent; color: var(--primary); cursor: pointer; font-size: .72rem; }
+.mirror-version-actions .mirror-delete-action { color: var(--danger); }
 .mirror-section-label { color: var(--text-muted); font-size: .75rem; text-transform: uppercase; margin: 0 0 .6rem; }
 .mirror-chip-group { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.25rem; }
 .mirror-chip { border: 1px solid var(--border); border-radius: 999px; padding: .45rem .7rem; font-size: .8rem; background: var(--bg-darker); }

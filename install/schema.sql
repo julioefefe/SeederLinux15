@@ -474,9 +474,12 @@ CREATE TABLE IF NOT EXISTS mirror.versions (
     id SERIAL PRIMARY KEY,
     distro_id INTEGER REFERENCES mirror.distros(id) ON DELETE CASCADE,
     version VARCHAR(50) NOT NULL,
+    active BOOLEAN DEFAULT TRUE,
     status VARCHAR(20) DEFAULT 'current',
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+ALTER TABLE mirror.versions ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
 
 CREATE TABLE IF NOT EXISTS mirror.jobs (
     id SERIAL PRIMARY KEY,

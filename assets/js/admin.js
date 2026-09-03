@@ -427,6 +427,13 @@ window.showView = showView;
 
 const mirrorArchitectures = ['amd64', 'i386', 'arm64'];
 const mirrorComponents = ['main', 'contrib', 'non-free', 'restricted', 'universe'];
+let mirrorCatalogTab = 'active';
+let mirrorCatalog = [];
+let mirrorCatalogForm = { type: null, id: null, distroId: null };
+
+function mirrorIsActive(value) {
+    return value === true || value === 't' || value === '1' || value === 1;
+}
 
 function renderMirrorOptions() {
     const architectureEl = document.getElementById('mirror-architectures');
@@ -446,22 +453,119 @@ function renderMirrorOptions() {
 function renderMirrorDistros(distros) {
     const container = document.getElementById('mirror-distros-list');
     if (!container) return;
-    if (!distros.length) {
-        container.innerHTML = '<p class="text-slate-400">Nenhuma distro ativa no catálogo.</p>';
+    mirrorCatalog = distros;
+    const showActive = mirrorCatalogTab === 'active';
+    const visibleDistros = distros.filter(distro => {
+        const distroActive = mirrorIsActive(distro.active);
+        const hasMatchingVersion = (distro.versions || []).some(version => mirrorIsActive(version.active) === showActive);
+        return distroActive === showActive || (!showActive && hasMatchingVersion);
+    });
+    if (!visibleDistros.length) {
+        container.innerHTML = `<p class="text-slate-400">Nenhuma distro ${showActive ? 'ativa' : 'inativa'} no catálogo.</p>`;
         return;
     }
-    container.innerHTML = distros.map(distro => `
+    container.innerHTML = visibleDistros.map(distro => `
         <div class="mirror-distro-block">
             <div class="mirror-distro-heading">
-                <label class="mirror-check-label"><input type="checkbox" data-mirror-distro value="${distro.id}" checked><strong>${Utils.escapeHtml(distro.name)} ${Utils.escapeHtml(distro.codename)}</strong></label>
+                <label class="mirror-check-label"><input type="checkbox" data-mirror-distro value="${distro.id}" ${mirrorIsActive(distro.active) ? 'checked' : ''}><strong>${Utils.escapeHtml(distro.name)} ${Utils.escapeHtml(distro.codename)}</strong></label>
                 ${distro.base_distro ? `<span class="mirror-base-relation">Base: ${Utils.escapeHtml(distro.base_distro.name)} ${Utils.escapeHtml(distro.base_distro.codename)}</span>` : ''}
             </div>
+            <div class="mirror-catalog-actions"><button type="button" class="btn btn-secondary btn-sm" onclick="editMirrorDistro(${distro.id})">Editar distro</button><button type="button" class="btn btn-secondary btn-sm" onclick="toggleMirrorDistro(${distro.id})">${mirrorIsActive(distro.active) ? 'Desativar' : 'Ativar'}</button><button type="button" class="btn btn-primary btn-sm" onclick="addMirrorVersion(${distro.id})">Adicionar versão</button></div>
             <div class="mirror-version-list">
-                ${(distro.versions || []).map(version => `<label class="mirror-version"><input type="checkbox" data-mirror-version data-distro-id="${distro.id}" value="${version.id}" checked><span>${Utils.escapeHtml(version.version)}</span><span class="badge ${version.status === 'current' ? 'badge-success' : version.status === 'future' ? 'badge-info' : 'badge-secondary'}">${Utils.escapeHtml(version.status)}</span></label>`).join('')}
+                ${(distro.versions || []).filter(version => mirrorIsActive(version.active) === showActive).map(version => `<div class="mirror-version"><label class="mirror-version-label"><input type="checkbox" data-mirror-version data-distro-id="${distro.id}" value="${version.id}" ${mirrorIsActive(version.active) ? 'checked' : ''}><span>${Utils.escapeHtml(version.version)}</span><span class="badge ${version.status === 'current' ? 'badge-success' : version.status === 'future' ? 'badge-info' : 'badge-secondary'}">${Utils.escapeHtml(version.status)}</span></label><span class="mirror-version-actions"><button type="button" onclick="editMirrorVersion(${version.id})" title="Editar versão">Editar</button><button type="button" onclick="toggleMirrorVersion(${version.id})" title="Ativar ou desativar versão">${mirrorIsActive(version.active) ? 'Desativar' : 'Ativar'}</button><button type="button" class="mirror-delete-action" onclick="deleteMirrorVersion(${version.id})" title="Remover versão">Remover</button></span></div>`).join('')}
             </div>
         </div>
     `).join('');
 }
+
+function renderMirrorJobs(jobs) {
+    const body = document.getElementById('mirror-jobs-tbody');
+    if (!body) return;
+    body.innerHTML = jobs?.length ? jobs.map(job => `<tr><td>${Utils.escapeHtml(job.job_type)}</td><td><span class="badge ${job.status === 'success' ? 'badge-success' : job.status === 'error' ? 'badge-danger' : 'badge-secondary'}">${Utils.escapeHtml(job.status)}</span></td><td>${Utils.formatDate(job.started_at)}</td><td>${Utils.escapeHtml(job.details || '-')}</td></tr>`).join('') : '<tr><td colspan="4" class="text-center text-slate-400">Nenhum job registrado.</td></tr>';
+}
+
+function openMirrorCatalogForm(type, item = {}, distroId = null) {
+    mirrorCatalogForm = { type, id: item.id || null, distroId: distroId || item.distro_id || null };
+    const isDistro = type === 'distro';
+    document.getElementById('mirror-catalog-modal-title').textContent = isDistro ? (item.id ? 'Editar distro' : 'Adicionar distro') : (item.id ? 'Editar versão' : 'Adicionar versão');
+    document.getElementById('mirror-distro-fields').classList.toggle('hidden', !isDistro);
+    document.getElementById('mirror-version-fields').classList.toggle('hidden', isDistro);
+    if (isDistro) {
+        document.getElementById('mirror-catalog-name').value = item.name || '';
+        document.getElementById('mirror-catalog-codename').value = item.codename || '';
+        const baseSelect = document.getElementById('mirror-catalog-base');
+        baseSelect.innerHTML = '<option value="">Nenhuma</option>' + mirrorCatalog.filter(distro => Number(distro.id) !== Number(item.id)).map(distro => `<option value="${distro.id}">${Utils.escapeHtml(distro.name)} ${Utils.escapeHtml(distro.codename)}</option>`).join('');
+        baseSelect.value = item.base_distro?.id || '';
+    } else {
+        document.getElementById('mirror-catalog-version').value = item.version || '';
+        document.getElementById('mirror-catalog-status').value = item.status || 'current';
+    }
+    openModal('modal-mirror-catalog');
+}
+
+async function addMirrorDistro() {
+    openMirrorCatalogForm('distro');
+}
+
+async function editMirrorDistro(id) {
+    const distro = mirrorCatalog.find(item => Number(item.id) === Number(id));
+    if (distro) openMirrorCatalogForm('distro', distro);
+}
+
+async function toggleMirrorDistro(id) {
+    if (!confirm('Alternar o estado desta distro? Suas versões ficarão ocultas quando a distro estiver inativa.')) return;
+    try { const res = await API.post('mirror-toggle-distro', { distro_id: id }); if (!res.success) throw new Error(res.error); Toast.success(res.message || 'Estado da distro atualizado.'); await loadMirror(); } catch (error) { Toast.error(error.message || 'Não foi possível alterar a distro.'); }
+}
+
+async function addMirrorVersion(distroId) {
+    openMirrorCatalogForm('version', {}, distroId);
+}
+
+function findMirrorVersion(id) { return mirrorCatalog.flatMap(distro => distro.versions || []).find(version => Number(version.id) === Number(id)); }
+
+async function editMirrorVersion(id) {
+    const versionData = findMirrorVersion(id);
+    if (versionData) openMirrorCatalogForm('version', versionData);
+}
+
+async function saveMirrorCatalogForm() {
+    const isDistro = mirrorCatalogForm.type === 'distro';
+    const data = isDistro ? {
+        name: document.getElementById('mirror-catalog-name').value.trim(),
+        codename: document.getElementById('mirror-catalog-codename').value.trim(),
+        base_distro_id: document.getElementById('mirror-catalog-base').value || null
+    } : {
+        version: document.getElementById('mirror-catalog-version').value.trim(),
+        status: document.getElementById('mirror-catalog-status').value
+    };
+    const action = isDistro ? (mirrorCatalogForm.id ? 'mirror-update-distro' : 'mirror-add-distro') : (mirrorCatalogForm.id ? 'mirror-update-version' : 'mirror-add-version');
+    if (isDistro && mirrorCatalogForm.id) data.distro_id = mirrorCatalogForm.id;
+    if (!isDistro && mirrorCatalogForm.id) data.version_id = mirrorCatalogForm.id;
+    if (!isDistro && !mirrorCatalogForm.id) data.distro_id = mirrorCatalogForm.distroId;
+    try {
+        const res = await API.post(action, data);
+        if (!res.success) throw new Error(res.error || 'Falha ao salvar item');
+        closeModal('modal-mirror-catalog');
+        Toast.success('Catálogo atualizado.');
+        await loadMirror();
+    } catch (error) { Toast.error(error.message || 'Não foi possível salvar o item.'); }
+}
+
+async function toggleMirrorVersion(id) {
+    if (!confirm('Alternar o estado desta versão?')) return;
+    try { const res = await API.post('mirror-toggle-version', { version_id: id }); if (!res.success) throw new Error(res.error); Toast.success(res.message || 'Estado da versão atualizado.'); await loadMirror(); } catch (error) { Toast.error(error.message || 'Não foi possível alterar a versão.'); }
+}
+
+async function deleteMirrorVersion(id) {
+    if (!confirm('Remover esta versão do catálogo?')) return;
+    try { const res = await API.post('mirror-delete-version', { version_id: id }); if (!res.success) throw new Error(res.error); Toast.success('Versão removida.'); await loadMirror(); } catch (error) { Toast.error(error.message || 'Não foi possível remover a versão.'); }
+}
+window.editMirrorDistro = editMirrorDistro;
+window.toggleMirrorDistro = toggleMirrorDistro;
+window.addMirrorVersion = addMirrorVersion;
+window.editMirrorVersion = editMirrorVersion;
+window.toggleMirrorVersion = toggleMirrorVersion;
+window.deleteMirrorVersion = deleteMirrorVersion;
 
 function renderMirrorOrganizations(settings) {
     const body = document.getElementById('mirror-orgs-tbody');
@@ -498,9 +602,26 @@ async function loadMirror() {
         }
         renderMirrorDistros(data.available_distros || []);
         renderMirrorOrganizations(data.organization_settings || []);
+        renderMirrorJobs(data.jobs || []);
         updateMirrorCapacity();
     } catch (error) {
         Toast.error(error.message || 'Não foi possível carregar o Mirror.');
+    }
+}
+
+async function syncMirrorNow() {
+    if (!confirm('Enfileirar uma sincronização do Mirror agora? A execução real ainda não está habilitada.')) return;
+    const button = document.getElementById('btn-mirror-sync-now');
+    if (button) button.disabled = true;
+    try {
+        const res = await API.post('mirror-sync-now', {});
+        if (!res.success) throw new Error(res.error || 'Falha ao enfileirar sincronização');
+        Toast.success(`Job #${res.data.job_id} criado com status ${res.data.status}.`);
+        await loadMirror();
+    } catch (error) {
+        Toast.error(error.message || 'Não foi possível enfileirar a sincronização.');
+    } finally {
+        if (button) button.disabled = false;
     }
 }
 
@@ -3140,6 +3261,20 @@ function setupEventListeners() {
     document.getElementById('btn-save-public-theme')?.addEventListener('click', savePublicTheme);
     document.getElementById('btn-save-mirror-config')?.addEventListener('click', saveMirrorConfig);
     document.getElementById('btn-estimate-mirror')?.addEventListener('click', estimateMirror);
+    document.getElementById('btn-mirror-sync-now')?.addEventListener('click', syncMirrorNow);
+    document.getElementById('btn-add-mirror-distro')?.addEventListener('click', addMirrorDistro);
+    document.getElementById('btn-save-mirror-catalog')?.addEventListener('click', saveMirrorCatalogForm);
+    document.querySelectorAll('[data-mirror-catalog-tab]').forEach(tab => {
+        tab.addEventListener('click', () => {
+            mirrorCatalogTab = tab.dataset.mirrorCatalogTab || 'active';
+            document.querySelectorAll('[data-mirror-catalog-tab]').forEach(item => {
+                const selected = item === tab;
+                item.classList.toggle('btn-primary', selected);
+                item.classList.toggle('btn-secondary', !selected);
+            });
+            renderMirrorDistros(mirrorCatalog);
+        });
+    });
     document.getElementById('btn-save-vars')?.addEventListener('click', saveVariables);
     document.getElementById('btn-generate-bundle')?.addEventListener('click', generateBundle);
 

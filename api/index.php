@@ -101,6 +101,38 @@ try {
             if ($method !== 'POST') jsonError('Method not allowed', 405);
             handleMirrorEstimate($input);
             break;
+        case 'mirror-add-distro':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorAddDistro($input);
+            break;
+        case 'mirror-update-distro':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorUpdateDistro($input);
+            break;
+        case 'mirror-toggle-distro':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorToggleDistro($input);
+            break;
+        case 'mirror-add-version':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorAddVersion($input);
+            break;
+        case 'mirror-update-version':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorUpdateVersion($input);
+            break;
+        case 'mirror-toggle-version':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorToggleVersion($input);
+            break;
+        case 'mirror-delete-version':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorDeleteVersion($input);
+            break;
+        case 'mirror-sync-now':
+            requireMirrorAdmin($method, 'POST');
+            handleMirrorSyncNow();
+            break;
 
         // Organizations
 
@@ -524,11 +556,10 @@ function handleMirrorStatus() {
     $distroRows = Database::fetchAll(
         "SELECT d.id, d.name, d.codename, d.active, d.base_distro_id,
             base.name AS base_name, base.codename AS base_codename,
-            v.id AS version_id, v.version, v.status
+            v.id AS version_id, v.version, v.status, v.active AS version_active
          FROM mirror.distros d
          LEFT JOIN mirror.versions v ON v.distro_id = d.id
          LEFT JOIN mirror.distros base ON base.id = d.base_distro_id
-         WHERE d.active = TRUE
          ORDER BY d.name, d.id, v.version"
     );
     foreach ($distroRows as $row) {
@@ -537,6 +568,7 @@ function handleMirrorStatus() {
                 'id' => (int)$row['id'],
                 'name' => $row['name'],
                 'codename' => $row['codename'],
+                'active' => filter_var($row['active'], FILTER_VALIDATE_BOOLEAN),
                 'base_distro' => $row['base_distro_id'] ? [
                     'id' => (int)$row['base_distro_id'],
                     'name' => $row['base_name'],
@@ -550,6 +582,7 @@ function handleMirrorStatus() {
                 'id' => (int)$row['version_id'],
                 'version' => $row['version'],
                 'status' => $row['status'],
+                'active' => filter_var($row['version_active'], FILTER_VALIDATE_BOOLEAN),
             ];
         }
     }
@@ -557,6 +590,10 @@ function handleMirrorStatus() {
     $lastJob = Database::fetchOne(
         "SELECT status FROM mirror.jobs WHERE job_type = 'sync'
          ORDER BY COALESCE(finished_at, started_at, created_at) DESC, id DESC LIMIT 1"
+    );
+    $jobs = Database::fetchAll(
+        "SELECT id, job_type, status, started_at, finished_at, details
+         FROM mirror.jobs ORDER BY COALESCE(started_at, created_at) DESC, id DESC LIMIT 20"
     );
     $organizationUsage = Database::fetchOne(
         "SELECT COUNT(*) AS count FROM mirror.organization_repository_settings
@@ -584,7 +621,104 @@ function handleMirrorStatus() {
         'organization_settings' => $organizationSettings,
         'organization_usage' => (int)($organizationUsage['count'] ?? 0),
         'last_job_status' => $lastJob['status'] ?? null,
+        'jobs' => $jobs,
     ]);
+}
+
+function requireMirrorAdmin($method, $expectedMethod = 'POST') {
+    requireAuth();
+    if (($_SESSION['role'] ?? null) !== 'admin_gap') {
+        jsonError('Acesso restrito ao administrador GAP', 403);
+    }
+    if ($method !== $expectedMethod) jsonError('Method not allowed', 405);
+}
+
+function mirrorCatalogStatus($status) {
+    return in_array($status, ['old', 'current', 'future'], true) ? $status : null;
+}
+
+function handleMirrorAddDistro($input) {
+    $name = sanitizeInput($input['name'] ?? '');
+    $codename = sanitizeInput($input['codename'] ?? '');
+    $baseId = ($input['base_distro_id'] ?? '') === '' || $input['base_distro_id'] === null ? null : filter_var($input['base_distro_id'], FILTER_VALIDATE_INT);
+    if ($name === '' || $codename === '') jsonError('Nome e codename sao obrigatorios');
+    if ($baseId === false || ($baseId !== null && !Database::fetchOne('SELECT id FROM mirror.distros WHERE id = ?', [$baseId]))) jsonError('Distro base invalida');
+    try {
+        Database::execute('INSERT INTO mirror.distros (name, codename, base_distro_id) VALUES (?, ?, ?)', [$name, $codename, $baseId]);
+    } catch (PDOException $e) {
+        if ($e->getCode() === '23505') jsonError('Essa distro ja existe', 409);
+        throw $e;
+    }
+    jsonSuccess(null, 'Distro adicionada');
+}
+
+function handleMirrorUpdateDistro($input) {
+    $id = filter_var($input['distro_id'] ?? null, FILTER_VALIDATE_INT);
+    $name = sanitizeInput($input['name'] ?? '');
+    $codename = sanitizeInput($input['codename'] ?? '');
+    $baseId = ($input['base_distro_id'] ?? '') === '' || $input['base_distro_id'] === null ? null : filter_var($input['base_distro_id'], FILTER_VALIDATE_INT);
+    if ($id === false || $id < 1 || $name === '' || $codename === '') jsonError('Dados da distro invalidos');
+    if ($baseId === $id) jsonError('Uma distro nao pode ser sua propria base');
+    if ($baseId === false || ($baseId !== null && !Database::fetchOne('SELECT id FROM mirror.distros WHERE id = ?', [$baseId]))) jsonError('Distro base invalida');
+    Database::execute('UPDATE mirror.distros SET name = ?, codename = ?, base_distro_id = ? WHERE id = ?', [$name, $codename, $baseId, $id]);
+    jsonSuccess(null, 'Distro atualizada');
+}
+
+function handleMirrorToggleDistro($input) {
+    $id = filter_var($input['distro_id'] ?? null, FILTER_VALIDATE_INT);
+    if ($id === false || $id < 1) jsonError('Distro invalida');
+    $distro = Database::fetchOne('SELECT active FROM mirror.distros WHERE id = ?', [$id]);
+    if (!$distro) jsonError('Distro nao encontrada', 404);
+    $active = !filter_var($distro['active'], FILTER_VALIDATE_BOOLEAN);
+    Database::execute('UPDATE mirror.distros SET active = ? WHERE id = ?', [$active, $id]);
+    jsonSuccess(['active' => $active], $active ? 'Distro ativada' : 'Distro desativada');
+}
+
+function handleMirrorAddVersion($input) {
+    $distroId = filter_var($input['distro_id'] ?? null, FILTER_VALIDATE_INT);
+    $version = sanitizeInput($input['version'] ?? '');
+    $status = mirrorCatalogStatus(sanitizeInput($input['status'] ?? 'current'));
+    if ($distroId === false || $distroId < 1 || $version === '' || $status === null) jsonError('Dados da versao invalidos');
+    if (!Database::fetchOne('SELECT id FROM mirror.distros WHERE id = ?', [$distroId])) jsonError('Distro nao encontrada', 404);
+    try {
+        Database::execute('INSERT INTO mirror.versions (distro_id, version, status) VALUES (?, ?, ?)', [$distroId, $version, $status]);
+    } catch (PDOException $e) {
+        if ($e->getCode() === '23505') jsonError('Essa versao ja existe', 409);
+        throw $e;
+    }
+    jsonSuccess(null, 'Versao adicionada');
+}
+
+function handleMirrorUpdateVersion($input) {
+    $id = filter_var($input['version_id'] ?? null, FILTER_VALIDATE_INT);
+    $version = sanitizeInput($input['version'] ?? '');
+    $status = mirrorCatalogStatus(sanitizeInput($input['status'] ?? ''));
+    if ($id === false || $id < 1 || $version === '' || $status === null) jsonError('Dados da versao invalidos');
+    Database::execute('UPDATE mirror.versions SET version = ?, status = ? WHERE id = ?', [$version, $status, $id]);
+    jsonSuccess(null, 'Versao atualizada');
+}
+
+function handleMirrorToggleVersion($input) {
+    $id = filter_var($input['version_id'] ?? null, FILTER_VALIDATE_INT);
+    if ($id === false || $id < 1) jsonError('Versao invalida');
+    $version = Database::fetchOne('SELECT active FROM mirror.versions WHERE id = ?', [$id]);
+    if (!$version) jsonError('Versao nao encontrada', 404);
+    $active = !filter_var($version['active'], FILTER_VALIDATE_BOOLEAN);
+    Database::execute('UPDATE mirror.versions SET active = ? WHERE id = ?', [$active, $id]);
+    jsonSuccess(['active' => $active], $active ? 'Versao ativada' : 'Versao desativada');
+}
+
+function handleMirrorDeleteVersion($input) {
+    $id = filter_var($input['version_id'] ?? null, FILTER_VALIDATE_INT);
+    if ($id === false || $id < 1) jsonError('Versao invalida');
+    Database::execute('DELETE FROM mirror.versions WHERE id = ?', [$id]);
+    jsonSuccess(null, 'Versao removida');
+}
+
+function handleMirrorSyncNow() {
+    Database::execute("INSERT INTO mirror.jobs (job_type, status, started_at) VALUES ('sync', 'pending', NOW())");
+    $jobId = (int)Database::lastInsertId();
+    jsonSuccess(['job_id' => $jobId, 'status' => 'pending'], 'Sincronizacao enfileirada; a execucao sera implementada posteriormente');
 }
 
 function handleMirrorSaveConfig($input) {

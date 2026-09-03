@@ -196,7 +196,7 @@
                         <div class="card">
                             <div class="card-header">
                                 <div><h3 class="card-title">Status geral do mirror</h3><p class="page-subtitle">Configuração global do serviço local</p></div>
-                                <span id="mirror-last-job" class="badge badge-secondary">Sem sincronização</span>
+                                <div class="mirror-header-actions"><span id="mirror-last-job" class="badge badge-secondary">Sem sincronização</span><button id="btn-mirror-sync-now" type="button" class="btn btn-warning btn-sm">Forçar sincronização</button></div>
                             </div>
                             <div class="card-body">
                                 <div class="mirror-form-grid">
@@ -220,10 +220,23 @@
                         </div>
                     </div>
                     <div class="mirror-grid mirror-grid-bottom">
-                        <div class="card"><div class="card-header"><div><h3 class="card-title">Catálogo de distros e versões</h3><p class="page-subtitle">Selecione o que deverá ser espelhado</p></div></div><div id="mirror-distros-list" class="card-body mirror-distros-list"></div></div>
+                        <div class="card"><div class="card-header"><div><h3 class="card-title">Catálogo de distros e versões</h3><p class="page-subtitle">Selecione o que deverá ser espelhado</p></div><button id="btn-add-mirror-distro" type="button" class="btn btn-primary btn-sm">Adicionar distro</button></div><div class="mirror-catalog-tabs"><button type="button" class="btn btn-sm btn-primary" data-mirror-catalog-tab="active">Ativas</button><button type="button" class="btn btn-sm btn-secondary" data-mirror-catalog-tab="inactive">Inativas</button></div><div id="mirror-distros-list" class="card-body mirror-distros-list"></div></div>
                         <div class="card"><div class="card-header"><h3 class="card-title">Arquiteturas e componentes</h3></div><div class="card-body"><h4 class="mirror-section-label">Arquiteturas</h4><div id="mirror-architectures" class="mirror-chip-group"></div><h4 class="mirror-section-label">Componentes</h4><div id="mirror-components" class="mirror-chip-group"></div></div></div>
                     </div>
                     <div class="card mirror-org-card"><div class="card-header"><div><h3 class="card-title">Organizações (OMs)</h3><p class="page-subtitle">Defina quais OMs usarão o mirror local</p></div><span id="mirror-org-usage" class="badge badge-info">0 OMs</span></div><div class="card-body table-wrapper"><table><thead><tr><th>OM</th><th>Usar mirror local</th><th>Prioridade</th><th class="text-right">Ação</th></tr></thead><tbody id="mirror-orgs-tbody"></tbody></table></div></div>
+                    <div class="card mirror-org-card"><div class="card-header"><div><h3 class="card-title">Histórico de jobs</h3><p class="page-subtitle">Últimas solicitações de sincronização</p></div></div><div class="card-body table-wrapper"><table><thead><tr><th>Tipo</th><th>Status</th><th>Início</th><th>Detalhes</th></tr></thead><tbody id="mirror-jobs-tbody"></tbody></table></div></div>
+                </div>
+
+                <div id="modal-mirror-catalog" class="modal hidden">
+                    <div class="modal-backdrop" onclick="closeModal('modal-mirror-catalog')"></div>
+                    <div class="modal-content">
+                        <div class="modal-header"><h3 id="mirror-catalog-modal-title" class="modal-title">Catálogo do Mirror</h3><button class="modal-close" type="button" onclick="closeModal('modal-mirror-catalog')">&times;</button></div>
+                        <div class="modal-body">
+                            <div id="mirror-distro-fields"><div class="form-group"><label class="form-label" for="mirror-catalog-name">Nome</label><input id="mirror-catalog-name" class="form-input" type="text" maxlength="100"></div><div class="form-group"><label class="form-label" for="mirror-catalog-codename">Codename</label><input id="mirror-catalog-codename" class="form-input" type="text" maxlength="50"></div><div class="form-group"><label class="form-label" for="mirror-catalog-base">Distro base (opcional)</label><select id="mirror-catalog-base" class="form-select"><option value="">Nenhuma</option></select></div></div>
+                            <div id="mirror-version-fields" class="hidden"><div class="form-group"><label class="form-label" for="mirror-catalog-version">Versão/codename</label><input id="mirror-catalog-version" class="form-input" type="text" maxlength="50"></div><div class="form-group"><label class="form-label" for="mirror-catalog-status">Status</label><select id="mirror-catalog-status" class="form-select"><option value="old">old</option><option value="current">current</option><option value="future">future</option></select></div></div>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-mirror-catalog')">Cancelar</button><button id="btn-save-mirror-catalog" type="button" class="btn btn-primary">Salvar</button></div>
+                    </div>
                 </div>
 
                 <!-- OM Detail: Dashboard + Config tabs -->
