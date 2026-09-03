@@ -3194,14 +3194,15 @@ function handleResetScriptOrder() {
         'core_conky.sh'            => 12,
         'core_config.sh'           => 13,
         'core_branding.sh'         => 14,
-        'core_logon.sh'            => 15,
-        'core_password_change.sh'  => 16,
-        'core_logoff.sh'           => 17,
-        'core_session_lightdm.sh'  => 18,
-        'core_session_gdm3.sh'     => 19,
-        'core_session_sddm.sh'     => 20,
-        'core_agent.sh'            => 21,
-        'core_proxy.sh'            => 22,
+        'core_sync.sh'             => 15,
+        'core_logon.sh'            => 16,
+        'core_password_change.sh'  => 17,
+        'core_logoff.sh'           => 18,
+        'core_session_lightdm.sh'  => 19,
+        'core_session_gdm3.sh'     => 20,
+        'core_session_sddm.sh'     => 21,
+        'core_agent.sh'            => 22,
+        'core_proxy.sh'            => 23,
     ];
 
     Database::beginTransaction();
