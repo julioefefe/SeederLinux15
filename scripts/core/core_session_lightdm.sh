@@ -5,6 +5,27 @@
 # ============================================================================
 # Configura o LightDM como display manager e define os scripts de logon
 # e logoff que serao executados nas transicoes de sessao.
+#
+# Resolucao de DESKTOP_ENV/DISPLAY_MANAGER (nessa ordem):
+#   1) Valor injetado pela OM ({{DESKTOP_ENV}} / {{DISPLAY_MANAGER}})
+#   2) Valor ja persistido em /etc/seederlinux/config.env (escrito por
+#      este mesmo script em uma execucao anterior, ou por outro dos
+#      scripts de sessao no mesmo bundle)
+#   3) Deteccao em runtime: DM ja ativo -> DM ja instalado -> padrao
+#      por DE (gnome->gdm3, kde->sddm, qualquer outro->lightdm)
+#
+# O resultado final e sempre regravado em config.env, para que os
+# demais scripts de sessao (gdm3/sddm) e as fases seguintes (branding,
+# logon, logoff) reaproveitem a mesma resposta sem redetectar.
+#
+# CORRECAO CRITICA: a versao anterior usava `return 0` dentro deste
+# subshell "( ... )", o que nao e uma funcao. Isso gera erro em
+# runtime ("return: can only `return' from a function or sourced
+# script"), o subshell termina com exit code != 0 e, como o bundle
+# roda com `set -e`, o erro ABORTA O BUNDLE INTEIRO ali mesmo -
+# em qualquer distro/DE. Este script usa `exit` (valido dentro do
+# subshell) em todos os pontos de saida antecipada.
+#
 # Os placeholders VARIAVEL são substituídos automaticamente
 # pelo sistema na geração do bundle.
 # ============================================================================
@@ -25,20 +46,97 @@ BASE_URL="{{BASE_URL}}"
 DOMINIO="{{DOMINIO}}"
 DOMINIO_NETBIOS="{{DOMINIO_NETBIOS}}"
 GRUPO_ADMIN_AD="{{GRUPO_ADMIN_AD}}"
+THEME="{{THEME}}"
 
-if [ -z "$DISPLAY_MANAGER" ] || [ "$DISPLAY_MANAGER" = "" ]; then
-    # DISPLAY_MANAGER vazio: se LightDM ja estiver instalado, configurar greeter
-    if command -v lightdm &>/dev/null || dpkg -l lightdm 2>/dev/null | grep -q "^ii"; then
-        echo ">>> DISPLAY_MANAGER vazio, mas LightDM ja esta instalado. Configurando greeter."
-    else
-        echo ">>> DISPLAY_MANAGER nao configurado. Nenhum DM sera instalado."
-        return 0
+CONFIG_FILE="/etc/seederlinux/config.env"
+
+# ============================================================
+# Funcoes de deteccao (usadas somente se nao vier persistido)
+# ============================================================
+detectar_de() {
+    if command -v cinnamon-session &>/dev/null; then echo "cinnamon"
+    elif command -v mate-session &>/dev/null; then echo "mate"
+    elif command -v gnome-session &>/dev/null; then echo "gnome"
+    elif command -v startxfce4 &>/dev/null; then echo "xfce"
+    elif command -v startplasma-x11 &>/dev/null; then echo "kde"
+    elif command -v lxqt-session &>/dev/null; then echo "lxqt"
+    elif command -v startlxde &>/dev/null; then echo "lxde"
+    else echo "unknown"
     fi
+}
+
+detectar_dm_ativo() {
+    if systemctl is-active --quiet lightdm 2>/dev/null; then echo "lightdm"
+    elif systemctl is-active --quiet gdm3 2>/dev/null; then echo "gdm3"
+    elif systemctl is-active --quiet sddm 2>/dev/null; then echo "sddm"
+    else echo ""
+    fi
+}
+
+detectar_dm_instalado() {
+    if dpkg -l lightdm 2>/dev/null | grep -q "^ii"; then echo "lightdm"
+    elif dpkg -l gdm3 2>/dev/null | grep -q "^ii"; then echo "gdm3"
+    elif dpkg -l sddm 2>/dev/null | grep -q "^ii"; then echo "sddm"
+    else echo ""
+    fi
+}
+
+dm_padrao_para_de() {
+    case "$1" in
+        gnome) echo "gdm3" ;;
+        kde)   echo "sddm" ;;
+        *)     echo "lightdm" ;;  # cinnamon, mate, xfce, lxde, lxqt, unknown
+    esac
+}
+
+# ============================================================
+# 1. Resolver DESKTOP_ENV (OM -> config.env -> deteccao)
+# ============================================================
+if [ -z "$DESKTOP_ENV" ] && [ -f "$CONFIG_FILE" ]; then
+    DESKTOP_ENV="$(grep -m1 '^DESKTOP_ENV=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"')"
+fi
+if [ -z "$DESKTOP_ENV" ]; then
+    DESKTOP_ENV="$(detectar_de)"
+    echo ">>> DESKTOP_ENV nao informado. Detectado em runtime: $DESKTOP_ENV"
+else
+    echo ">>> DESKTOP_ENV: $DESKTOP_ENV"
 fi
 
-if [ "$DISPLAY_MANAGER" != "lightdm" ] && [ "$DISPLAY_MANAGER" != "" ]; then
-    echo ">>> DISPLAY_MANAGER e $DISPLAY_MANAGER (nao e lightdm). Pulando."
-    return 0
+# ============================================================
+# 2. Resolver DISPLAY_MANAGER (OM -> config.env -> deteccao)
+# ============================================================
+if [ -z "$DISPLAY_MANAGER" ] && [ -f "$CONFIG_FILE" ]; then
+    DISPLAY_MANAGER="$(grep -m1 '^DISPLAY_MANAGER=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"')"
+fi
+if [ -z "$DISPLAY_MANAGER" ]; then
+    DISPLAY_MANAGER="$(detectar_dm_ativo)"
+    [ -z "$DISPLAY_MANAGER" ] && DISPLAY_MANAGER="$(detectar_dm_instalado)"
+    [ -z "$DISPLAY_MANAGER" ] && DISPLAY_MANAGER="$(dm_padrao_para_de "$DESKTOP_ENV")"
+    echo ">>> DISPLAY_MANAGER nao informado. Resolvido automaticamente: $DISPLAY_MANAGER"
+else
+    echo ">>> DISPLAY_MANAGER: $DISPLAY_MANAGER"
+fi
+
+# ============================================================
+# 3. Persistir o resultado para os proximos scripts (gdm3/sddm,
+#    branding, logon, logoff) reaproveitarem sem redetectar
+# ============================================================
+mkdir -p /etc/seederlinux
+touch "$CONFIG_FILE"
+sed -i '/^DESKTOP_ENV=/d;/^DISPLAY_MANAGER=/d' "$CONFIG_FILE"
+{
+    echo "DESKTOP_ENV=${DESKTOP_ENV}"
+    echo "DISPLAY_MANAGER=${DISPLAY_MANAGER}"
+} >> "$CONFIG_FILE"
+
+# ============================================================
+# 4. Este script so configura LightDM. Se o DM resolvido for
+#    outro, encerra este bloco (nao o bundle) e segue para 14b/14c.
+# ============================================================
+if [ "$DISPLAY_MANAGER" != "lightdm" ]; then
+    echo ">>> DISPLAY_MANAGER resolvido e '$DISPLAY_MANAGER' (nao e lightdm). Pulando."
+    echo "============================================================"
+    exit 0
 fi
 
 echo ">>> Display Manager: $DISPLAY_MANAGER"
@@ -77,8 +175,11 @@ session-wrapper=/etc/lightdm/Xsession
 pam-service=lightdm
 pam-autologin-service=lightdm-autologin
 
-# Executar scripts de logon/logoff
-session-setup-script=/usr/local/bin/seederlinux-logon
+# Logoff via hook do DM (root, tolerante - so desmonta/mata processo).
+# Logon NAO fica mais aqui: passou a rodar via autostart XDG dentro da
+# sessao do usuario (ver core_logon.sh), porque session-setup-script
+# roda como root ANTES da sessao existir - sem D-Bus/HOME do usuario
+# corretos, os gsettings/mounts/atalhos nao aplicavam de verdade.
 session-cleanup-script=/usr/local/bin/seederlinux-logoff
 EOF
 
@@ -92,7 +193,7 @@ mkdir -p /etc/lightdm
 
 cat > /etc/lightdm/lightdm-gtk-greeter.conf <<EOF
 [greeter]
-theme-name = {{THEME}}
+theme-name = ${THEME}
 icon-theme-name = Adwaita
 font-name = DejaVu Sans 10
 background = /usr/share/backgrounds/seederlinux/wallpaper-login.jpg
