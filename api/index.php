@@ -68,6 +68,16 @@ try {
             handleDashboard($orgId);
             break;
 
+        // Mirror status (GAP administrators only)
+        case 'mirror-status':
+            requireAuth();
+            if (($_SESSION['role'] ?? null) !== 'admin_gap') {
+                jsonError('Acesso restrito ao administrador GAP', 403);
+            }
+            if ($method !== 'GET') jsonError('Method not allowed', 405);
+            handleMirrorStatus();
+            break;
+
         // Organizations
 
 /**
@@ -467,6 +477,70 @@ function handleSessionCheck() {
         ], 'Sessao ativa');
     }
     jsonResponse(['success' => false, 'error' => 'Not authenticated'], 200);
+}
+
+function handleMirrorStatus() {
+    $config = Database::fetchOne(
+        "SELECT enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours
+         FROM mirror_config ORDER BY id LIMIT 1"
+    ) ?: [
+        'enabled' => false,
+        'tool' => 'aptly',
+        'mirror_base_path' => '/var/lib/seederlinux/mirror',
+        'verify_gpg' => true,
+        'sync_interval_hours' => 24,
+    ];
+
+    $mirrorPath = $config['mirror_base_path'];
+    if (!is_dir($mirrorPath)) {
+        $mirrorPath = '/var';
+    }
+
+    $availableDistros = [];
+    $distroRows = Database::fetchAll(
+        "SELECT d.id, d.name, d.codename, d.active, v.version, v.status
+         FROM mirror_distros d
+         LEFT JOIN mirror_versions v ON v.distro_id = d.id
+         WHERE d.active = TRUE
+         ORDER BY d.name, d.id, v.version"
+    );
+    foreach ($distroRows as $row) {
+        if (!isset($availableDistros[$row['id']])) {
+            $availableDistros[$row['id']] = [
+                'name' => $row['name'],
+                'codename' => $row['codename'],
+                'versions' => [],
+            ];
+        }
+        if ($row['version'] !== null) {
+            $availableDistros[$row['id']]['versions'][] = [
+                'version' => $row['version'],
+                'status' => $row['status'],
+            ];
+        }
+    }
+
+    $lastJob = Database::fetchOne(
+        "SELECT status FROM mirror_jobs WHERE job_type = 'sync'
+         ORDER BY COALESCE(finished_at, started_at, created_at) DESC, id DESC LIMIT 1"
+    );
+    $organizationUsage = Database::fetchOne(
+        "SELECT COUNT(*) AS count FROM organization_repository_settings
+         WHERE use_local_mirror = TRUE"
+    );
+
+    jsonSuccess([
+        'enabled' => filter_var($config['enabled'], FILTER_VALIDATE_BOOLEAN),
+        'tool' => $config['tool'],
+        'mirror_base_path' => $config['mirror_base_path'],
+        'verify_gpg' => filter_var($config['verify_gpg'], FILTER_VALIDATE_BOOLEAN),
+        'sync_interval_hours' => (int)$config['sync_interval_hours'],
+        'disk_total_gb' => round((float)disk_total_space($mirrorPath) / 1073741824, 2),
+        'disk_free_gb' => round((float)disk_free_space($mirrorPath) / 1073741824, 2),
+        'available_distros' => array_values($availableDistros),
+        'organization_usage' => (int)($organizationUsage['count'] ?? 0),
+        'last_job_status' => $lastJob['status'] ?? null,
+    ]);
 }
 
 function handleDashboard(?int $filterOrgId = null) {

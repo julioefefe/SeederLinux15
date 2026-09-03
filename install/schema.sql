@@ -422,6 +422,102 @@ VALUES ('public_theme', 'classic')
 ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================================
+-- Mirror module (database foundation; synchronization is implemented later)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mirror_config (
+    id SERIAL PRIMARY KEY,
+    enabled BOOLEAN DEFAULT FALSE,
+    tool VARCHAR(20) DEFAULT 'aptly',
+    mirror_base_path VARCHAR(255) NOT NULL DEFAULT '/var/lib/seederlinux/mirror',
+    verify_gpg BOOLEAN DEFAULT TRUE,
+    sync_interval_hours INTEGER DEFAULT 24,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS mirror_distros (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    codename VARCHAR(50) NOT NULL,
+    base_distro_id INTEGER NULL,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS mirror_versions (
+    id SERIAL PRIMARY KEY,
+    distro_id INTEGER REFERENCES mirror_distros(id) ON DELETE CASCADE,
+    version VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'current',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS mirror_jobs (
+    id SERIAL PRIMARY KEY,
+    job_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    details TEXT,
+    gpg_verified BOOLEAN DEFAULT FALSE,
+    started_at TIMESTAMP DEFAULT NOW(),
+    finished_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS organization_repository_settings (
+    id SERIAL PRIMARY KEY,
+    organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    use_local_mirror BOOLEAN DEFAULT FALSE,
+    mirror_priority INTEGER DEFAULT 100,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_distros_name_codename
+    ON mirror_distros(name, codename);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_versions_distro_version
+    ON mirror_versions(distro_id, version);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_repository_settings_org
+    ON organization_repository_settings(organization_id);
+
+INSERT INTO mirror_config (enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours)
+SELECT FALSE, 'aptly', '/var/lib/seederlinux/mirror', TRUE, 24
+WHERE NOT EXISTS (SELECT 1 FROM mirror_config);
+
+INSERT INTO mirror_distros (name, codename) VALUES
+    ('Debian', 'bookworm'),
+    ('Debian', 'trixie'),
+    ('Debian', 'forky'),
+    ('Ubuntu', 'jammy'),
+    ('Ubuntu', 'noble'),
+    ('Linux Mint', 'wilma'),
+    ('Zorin', 'jammy')
+ON CONFLICT (name, codename) DO NOTHING;
+
+UPDATE mirror_distros AS child
+SET base_distro_id = base.id
+FROM mirror_distros AS base
+WHERE child.name = 'Linux Mint'
+  AND base.name = 'Ubuntu'
+  AND base.codename = 'noble';
+
+UPDATE mirror_distros AS child
+SET base_distro_id = base.id
+FROM mirror_distros AS base
+WHERE child.name = 'Zorin'
+    AND base.name = 'Ubuntu'
+    AND base.codename = 'jammy';
+
+INSERT INTO mirror_versions (distro_id, version, status)
+SELECT id, codename,
+    CASE
+        WHEN codename IN ('trixie', 'noble', 'wilma') THEN 'current'
+        WHEN codename IN ('bookworm', 'jammy') THEN 'old'
+        WHEN codename = 'forky' THEN 'future'
+    END
+FROM mirror_distros
+ON CONFLICT (distro_id, version) DO NOTHING;
+
+-- ============================================================================
 -- Permissions
 -- ============================================================================
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO seeder;
