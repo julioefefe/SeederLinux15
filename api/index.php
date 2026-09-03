@@ -233,6 +233,14 @@ try {
             if ($method !== 'POST') jsonError('Method not allowed', 405);
             handleStationCheckin($input);
             break;
+        case 'sync-status':
+            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            handleStationSyncStatus($input);
+            break;
+        case 'sync-confirm':
+            if ($method !== 'POST') jsonError('Method not allowed', 405);
+            handleStationSyncConfirm($input);
+            break;
 
         // Audit
         case 'audit':
@@ -2160,7 +2168,7 @@ function handleStationCheckin($input) {
         if ($existing) {
             $organizationId = (int)$existing['organization_id'];
             Database::execute(
-                "UPDATE stations SET ip_address = ?, mac_address = ?, os_name = ?, os_version = ?, serial_aplicado = ?, last_checkin = CURRENT_TIMESTAMP WHERE id = ?",
+                "UPDATE stations SET ip_address = ?, mac_address = ?, os_name = ?, os_version = ?, serial_aplicado = GREATEST(serial_aplicado, ?), last_checkin = CURRENT_TIMESTAMP WHERE id = ?",
                 [$ipAddress, $macAddress, $osName, $osVersion, $configSerial, $existing['id']]
             );
             $stationId = $existing['id'];
@@ -2197,13 +2205,17 @@ function handleStationCheckin($input) {
             [$organizationId]
         );
         $orgSerial = (int)($orgRow['serial_config'] ?? 0);
+        $stationRow = Database::fetchOne("SELECT serial_aplicado FROM stations WHERE id = ?", [$stationId]);
+        $appliedSerial = (int)($stationRow['serial_aplicado'] ?? 0);
 
         $response = [
             'status' => 'ok',
             'station_id' => $stationId,
-            'update_available' => ($orgSerial > $configSerial),
+            'serial_config' => $orgSerial,
+            'serial_aplicado' => $appliedSerial,
+            'update_available' => ($orgSerial > $appliedSerial),
             'latest_bundle_id' => $latestBundle['id'] ?? null,
-            'current_serial' => $configSerial,
+            'current_serial' => $appliedSerial,
             'latest_serial' => $orgSerial,
         ];
 
@@ -2221,6 +2233,87 @@ function handleStationCheckin($input) {
             'line' => __LINE__ - 8
         ]);
         return;
+    }
+}
+
+function getStationForSync($stationToken) {
+    $stationToken = sanitizeInput($stationToken);
+    if (empty($stationToken)) {
+        jsonError('station_token obrigatorio', 400);
+    }
+
+    $station = Database::fetchOne(
+        "SELECT s.id, s.organization_id, s.serial_aplicado, o.serial_config
+         FROM stations s
+         JOIN organizations o ON o.id = s.organization_id
+         WHERE s.token = ?",
+        [$stationToken]
+    );
+
+    if (!$station) {
+        jsonError('Estacao nao autenticada', 401);
+    }
+
+    return $station;
+}
+
+function updateStationSerial($stationId, $serialAplicado) {
+    Database::execute(
+        "UPDATE stations
+         SET serial_aplicado = GREATEST(serial_aplicado, ?)
+         WHERE id = ?",
+        [$serialAplicado, $stationId]
+    );
+
+    $station = Database::fetchOne(
+        "SELECT serial_aplicado FROM stations WHERE id = ?",
+        [$stationId]
+    );
+
+    return (int)($station['serial_aplicado'] ?? 0);
+}
+
+function handleStationSyncStatus($input) {
+    try {
+        $station = getStationForSync($input['station_token'] ?? '');
+        $appliedSerial = (int)$station['serial_aplicado'];
+
+        if (array_key_exists('serial_aplicado', $input) && $input['serial_aplicado'] !== null) {
+            $appliedSerial = updateStationSerial(
+                $station['id'],
+                (int)$input['serial_aplicado']
+            );
+        }
+
+        $currentSerial = (int)$station['serial_config'];
+        jsonSuccess([
+            'update_available' => $currentSerial > $appliedSerial,
+            'current_serial' => $currentSerial,
+            'applied_serial' => $appliedSerial,
+            'manifest' => new stdClass()
+        ]);
+    } catch (PDOException $e) {
+        jsonError('Erro ao consultar status de sincronizacao', 500);
+    }
+}
+
+function handleStationSyncConfirm($input) {
+    if (!array_key_exists('serial_aplicado', $input) || $input['serial_aplicado'] === null) {
+        jsonError('serial_aplicado obrigatorio', 400);
+    }
+
+    try {
+        $station = getStationForSync($input['station_token'] ?? '');
+        $appliedSerial = updateStationSerial(
+            $station['id'],
+            (int)$input['serial_aplicado']
+        );
+
+        jsonSuccess([
+            'serial_aplicado' => $appliedSerial
+        ], 'Sincronizacao confirmada');
+    } catch (PDOException $e) {
+        jsonError('Erro ao confirmar sincronizacao', 500);
     }
 }
 
