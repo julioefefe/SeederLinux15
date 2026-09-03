@@ -1,15 +1,28 @@
 #!/bin/bash
 # ============================================================================
 # Core Script: core_logoff.sh
-# SeederLinux Lite - Logoff multi-DE
+# SeederLinux Lite - Logoff MINIMALISTA
 # ============================================================================
-# Script executado no momento do logoff do usuario. Cria o script permanente
-# /usr/local/bin/seederlinux-logoff que sera chamado pelo display manager
-# (LightDM/GDM3/SDDM) a cada logoff, apos reboot.
+# Ao contrario do logon, o logoff CONTINUA sendo chamado pelo display
+# manager (session-cleanup-script no LightDM / PostSession no GDM3 /
+# Xstop no SDDM) - roda como root. Isso e adequado aqui: desmontar
+# compartilhamentos e matar processos por usuario nao depende de D-Bus
+# de sessao, e precisa de privilegio de root de qualquer forma.
 #
-# O script permanente detecta automaticamente o ambiente grafico, desmonta
-# compartilhamentos CIFS, limpa cache e temporarios, e encerra processos.
-# Le as variaveis de /etc/seederlinux/config.env (persistente).
+# CORRECAO: a versao anterior confiava em `$USER`/`whoami` para saber
+# de quem e a sessao que esta terminando. Nesses hooks de DM (rodando
+# como root, ANTES/DURANTE o encerramento da sessao), $USER nao e
+# garantidamente o usuario que esta saindo - pode nao estar setado,
+# ou apontar pra root. Agora a resolucao do usuario segue uma cascata:
+#   1) $1 (primeiro argumento - e como LightDM/GDM3 normalmente
+#      informam o usuario da sessao para esses hooks)
+#   2) $PAM_USER (presente se invocado via pam_exec em algum fluxo)
+#   3) loginctl - sessao grafica mais recente
+#   4) $USER como ultimo recurso
+#
+# ESCOPO REDUZIDO (minimalista): so desmonta, limpa cache/lixeira/
+# temporarios e mata processos do usuario (Conky, x11vnc). Nao aplica
+# nenhuma configuracao - isso e trabalho do core_sync.sh.
 #
 # Os placeholders VARIAVEL sao substituidos automaticamente
 # pelo sistema na geracao do bundle.
@@ -18,33 +31,16 @@
 set -e
 
 echo "============================================================"
-echo "15 - Logoff do usuario (multi-DE)"
+echo "16 - Logoff minimalista"
 echo "============================================================"
 
 # ============================================================
 # Variaveis (substituidas no bundle)
 # ============================================================
-DOMINIO="{{DOMINIO}}"
 DOMINIO_NETBIOS="{{DOMINIO_NETBIOS}}"
 SERVIDOR_ARQUIVOS="{{SERVIDOR_ARQUIVOS}}"
 COMPARTILHAMENTOS="{{COMPARTILHAMENTOS}}"
 MOUNT_BASE="{{MOUNT_BASE}}"
-DESKTOP_ENV="{{DESKTOP_ENV}}"
-
-# ============================================================
-# Detectar ambiente grafico se nao definido
-# ============================================================
-if [ -z "$DESKTOP_ENV" ] || [ "$DESKTOP_ENV" = "" ]; then
-    if command -v cinnamon-session &>/dev/null; then DESKTOP_ENV="cinnamon"
-    elif command -v mate-session &>/dev/null; then DESKTOP_ENV="mate"
-    elif command -v gnome-session &>/dev/null; then DESKTOP_ENV="gnome"
-    elif command -v startxfce4 &>/dev/null; then DESKTOP_ENV="xfce"
-    elif command -v startplasma-x11 &>/dev/null; then DESKTOP_ENV="kde"
-    elif command -v startlxde &>/dev/null; then DESKTOP_ENV="lxde"
-    else DESKTOP_ENV="unknown"
-    fi
-    echo ">>> DE detectado automaticamente: $DESKTOP_ENV"
-fi
 
 # ============================================================
 # 1. Criar o script PERMANENTE em /usr/local/bin/seederlinux-logoff
@@ -53,57 +49,52 @@ echo ">>> Criando script permanente: /usr/local/bin/seederlinux-logoff"
 
 cat > /usr/local/bin/seederlinux-logoff <<'PERMSCRIPT'
 #!/bin/bash
-# seederlinux-logoff - Script permanente de logoff do SeederLinux (multi-DE)
-# Executado pelo display manager (LightDM/GDM3/SDDM) a cada logoff.
-# Le as variaveis de /etc/seederlinux/config.env (persistente).
+# seederlinux-logoff - script MINIMALISTA de logoff do SeederLinux.
+# Chamado pelo display manager (root) a cada logoff.
 
 CONFIG_FILE="/etc/seederlinux/config.env"
-
 if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck disable=SC1090
     source "$CONFIG_FILE"
-else
-    echo ">>> [logoff] AVISO: $CONFIG_FILE nao encontrado. Logoff sem configuracao."
+fi
+
+# ============================================================
+# Resolver o usuario que esta saindo - nao confiar so em $USER
+# ============================================================
+USERNAME="${1:-}"
+[ -z "$USERNAME" ] && USERNAME="${PAM_USER:-}"
+if [ -z "$USERNAME" ] || [ "$USERNAME" = "root" ]; then
+    # Fallback: sessao grafica mais recente via loginctl
+    USERNAME="$(loginctl list-sessions --no-legend 2>/dev/null \
+                | awk '{print $3}' | grep -v '^root$' | tail -n1)"
+fi
+[ -z "$USERNAME" ] && USERNAME="${USER:-}"
+
+if [ -z "$USERNAME" ] || [ "$USERNAME" = "root" ]; then
+    echo ">>> [logoff] AVISO: nao foi possivel determinar o usuario da sessao. Abortando limpeza."
     exit 0
 fi
 
-USERNAME="${USER:-$(whoami)}"
-USER_HOME="${HOME:-/home/$USERNAME}"
+USER_HOME="$(getent passwd "$USERNAME" | cut -d: -f6)"
+[ -z "$USER_HOME" ] && USER_HOME="/home/$USERNAME"
+
 LOG_DIR="/var/log/logon-logoff"
 LOG_FILE="$LOG_DIR/logoff_${USERNAME}.log"
-
 mkdir -p "$LOG_DIR"
 
 exec >> "$LOG_FILE" 2>&1
-echo "=== Logoff: $(date) - Usuario: $USERNAME ==="
-
-# ============================================================
-# Funcoes de deteccao de ambiente
-# ============================================================
-detect_de() {
-    if command -v cinnamon-session &>/dev/null; then echo "cinnamon"
-    elif command -v mate-session &>/dev/null; then echo "mate"
-    elif command -v gnome-session &>/dev/null; then echo "gnome"
-    elif command -v startxfce4 &>/dev/null; then echo "xfce"
-    elif command -v startplasma-x11 &>/dev/null; then echo "kde"
-    elif command -v startlxde &>/dev/null; then echo "lxde"
-    else echo "unknown"
-    fi
-}
-
-DESKTOP_ENV=$(detect_de)
-echo ">>> [logoff] Ambiente: $DESKTOP_ENV"
+echo "=== Logoff (minimo): $(date) - Usuario: $USERNAME ==="
 
 # ============================================================
 # Desmontar compartilhamentos CIFS do usuario
 # ============================================================
-if [ -n "$COMPARTILHAMENTOS" ] && [ "$COMPARTILHAMENTOS" != "" ]; then
+if [ -n "$COMPARTILHAMENTOS" ]; then
     MOUNT_DIR="${MOUNT_BASE:-/mnt}"
     for SHARE in $COMPARTILHAMENTOS; do
         SHARE_MOUNT="${MOUNT_DIR}/${SHARE}"
         if mountpoint -q "$SHARE_MOUNT" 2>/dev/null; then
-            umount "$SHARE_MOUNT" 2>/dev/null || {
-                echo ">>> [logoff] AVISO: Falha ao desmontar ${SHARE_MOUNT}"
-                umount -l "$SHARE_MOUNT" 2>/dev/null || true
+            umount "$SHARE_MOUNT" 2>/dev/null || umount -l "$SHARE_MOUNT" 2>/dev/null || {
+                echo ">>> [logoff] AVISO: falha ao desmontar ${SHARE_MOUNT}"
             }
             echo ">>> [logoff] Compartilhamento desmontado: ${SHARE}"
         fi
@@ -116,29 +107,30 @@ fi
 rm -rf "$USER_HOME/.cache/mozilla" 2>/dev/null || true
 rm -rf "$USER_HOME/.cache/google-chrome" 2>/dev/null || true
 rm -rf "$USER_HOME/.cache/chromium" 2>/dev/null || true
+rm -rf "$USER_HOME/.cache/thumbnails" 2>/dev/null || true
 
 # ============================================================
 # Esvaziar lixeira
 # ============================================================
-rm -rf "$USER_HOME/.local/share/Trash"/* 2>/dev/null || true
+rm -rf "${USER_HOME:?}/.local/share/Trash"/* 2>/dev/null || true
 
 # ============================================================
-# Remover temporarios do usuario
+# Remover temporarios do usuario (mais de 60min)
 # ============================================================
 find /tmp -user "$USERNAME" -type f -mmin +60 -delete 2>/dev/null || true
-rm -rf "$USER_HOME/.cache/thumbnails" 2>/dev/null || true
 
 # ============================================================
-# Remover atalhos temporarios do desktop (compartilhamentos desmontados)
+# Remover atalhos de compartilhamentos (evita atalho morto se o
+# mapeamento mudar antes do proximo login)
 # ============================================================
-if [ -n "$COMPARTILHAMENTOS" ] && [ "$COMPARTILHAMENTOS" != "" ]; then
+if [ -n "$COMPARTILHAMENTOS" ]; then
     for SHARE in $COMPARTILHAMENTOS; do
         rm -f "$USER_HOME/Desktop/${SHARE}.desktop" 2>/dev/null || true
     done
 fi
 
 # ============================================================
-# Matar processos do usuario (conky, x11vnc)
+# Finalizar processos do usuario (Conky, x11vnc)
 # ============================================================
 killall -u "$USERNAME" conky 2>/dev/null || true
 killall -u "$USERNAME" x11vnc 2>/dev/null || true
@@ -155,46 +147,5 @@ PERMSCRIPT
 
 chmod 755 /usr/local/bin/seederlinux-logoff
 echo ">>> Script permanente criado: /usr/local/bin/seederlinux-logoff"
-
-# ============================================================
-# 2. Executar logica de logoff AGORA (durante o bundle)
-# ============================================================
-echo ">>> Executando logica de logoff (bundle)..."
-
-USERNAME="${USER:-$(whoami)}"
-USER_HOME="${HOME:-/home/$USERNAME}"
-
-echo ">>> [logoff] Usuario: $USERNAME"
-
-if [ -n "$COMPARTILHAMENTOS" ] && [ "$COMPARTILHAMENTOS" != "" ]; then
-    MOUNT_DIR="${MOUNT_BASE:-/mnt}"
-    for SHARE in $COMPARTILHAMENTOS; do
-        SHARE_MOUNT="${MOUNT_DIR}/${SHARE}"
-        if mountpoint -q "$SHARE_MOUNT" 2>/dev/null; then
-            umount "$SHARE_MOUNT" 2>/dev/null || {
-                echo ">>> [logoff] AVISO: Falha ao desmontar ${SHARE_MOUNT}"
-                umount -l "$SHARE_MOUNT" 2>/dev/null || true
-            }
-            echo ">>> [logoff] Compartilhamento desmontado: ${SHARE}"
-        fi
-    done
-fi
-
-rm -rf "$USER_HOME/.cache/mozilla" 2>/dev/null || true
-rm -rf "$USER_HOME/.cache/google-chrome" 2>/dev/null || true
-rm -rf "$USER_HOME/.cache/chromium" 2>/dev/null || true
-rm -rf "$USER_HOME/.local/share/Trash"/* 2>/dev/null || true
-find /tmp -user "$USERNAME" -type f -mmin +60 -delete 2>/dev/null || true
-rm -rf "$USER_HOME/.cache/thumbnails" 2>/dev/null || true
-
-if [ -n "$COMPARTILHAMENTOS" ] && [ "$COMPARTILHAMENTOS" != "" ]; then
-    for SHARE in $COMPARTILHAMENTOS; do
-        rm -f "$USER_HOME/Desktop/${SHARE}.desktop" 2>/dev/null || true
-    done
-fi
-
-killall -u "$USERNAME" conky 2>/dev/null || true
-killall -u "$USERNAME" x11vnc 2>/dev/null || true
-
-echo ">>> [15] Logoff concluido!"
+echo ">>> [16] Logoff minimalista instalado!"
 echo "============================================================"
