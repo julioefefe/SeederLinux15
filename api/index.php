@@ -513,12 +513,12 @@ function handleDashboard(?int $filterOrgId = null) {
         $stats['stations_outdated'] = (int)Database::fetchOne(
             "SELECT COUNT(*) as c FROM stations s
              JOIN organizations o ON o.id = s.organization_id
-             WHERE s.organization_id = ? AND s.configuration_serial < o.serial_config",
+             WHERE s.organization_id = ? AND s.serial_aplicado < o.serial_config",
             [$scopeOrgId]
         )['c'];
         $stats['recent_stations'] = Database::fetchAll(
             "SELECT s.hostname, s.ip_address, s.last_checkin, o.acronym as org_acronym,
-                    CASE WHEN s.configuration_serial >= o.serial_config THEN 'Atualizado' ELSE 'Desatualizado' END as status
+                    CASE WHEN s.serial_aplicado >= o.serial_config THEN 'Atualizado' ELSE 'Desatualizado' END as status
              FROM stations s
              JOIN organizations o ON o.id = s.organization_id
              WHERE s.organization_id = ?
@@ -546,11 +546,11 @@ function handleDashboard(?int $filterOrgId = null) {
         $stats['stations_outdated'] = (int)Database::fetchOne(
             "SELECT COUNT(*) as c FROM stations s
              JOIN organizations o ON o.id = s.organization_id
-             WHERE s.configuration_serial < o.serial_config"
+             WHERE s.serial_aplicado < o.serial_config"
         )['c'];
         $stats['recent_stations'] = Database::fetchAll(
             "SELECT s.hostname, s.ip_address, s.last_checkin, o.acronym as org_acronym,
-                    CASE WHEN s.configuration_serial >= o.serial_config THEN 'Atualizado' ELSE 'Desatualizado' END as status
+                    CASE WHEN s.serial_aplicado >= o.serial_config THEN 'Atualizado' ELSE 'Desatualizado' END as status
              FROM stations s
              JOIN organizations o ON o.id = s.organization_id
              ORDER BY s.last_checkin DESC NULLS LAST LIMIT 10"
@@ -2073,7 +2073,7 @@ function handleGetStations($orgId) {
 
         $stations = Database::fetchAll(
             "SELECT s.id, s.hostname, s.ip_address, s.mac_address, s.os_name, s.os_version,
-                    s.last_checkin, s.configuration_serial, s.organization_id, o.acronym as org_acronym,
+                    s.last_checkin, s.serial_aplicado, s.organization_id, o.acronym as org_acronym,
                     o.serial_config,
                     CASE
                         WHEN s.last_checkin >= ? THEN 'online'
@@ -2082,7 +2082,7 @@ function handleGetStations($orgId) {
                         ELSE 'unknown'
                     END as connection_status,
                     CASE
-                        WHEN s.configuration_serial >= o.serial_config THEN 'updated'
+                        WHEN s.serial_aplicado >= o.serial_config THEN 'updated'
                         ELSE 'outdated'
                     END as config_status
              FROM stations s
@@ -2119,7 +2119,7 @@ function handleStationCheckin($input) {
     $macAddress = sanitizeInput($input['mac_address'] ?? '');
     $osName = sanitizeInput($input['os_name'] ?? '');
     $osVersion = sanitizeInput($input['os_version'] ?? '');
-    $configSerial = (int)($input['configuration_serial'] ?? 0);
+    $configSerial = (int)($input['serial_aplicado'] ?? 0);
     $orgAcronym = strtoupper(sanitizeInput($input['organization_acronym'] ?? ''));
     $stationToken = sanitizeInput($input['station_token'] ?? '');
 
@@ -2150,7 +2150,7 @@ function handleStationCheckin($input) {
         if ($existing) {
             $organizationId = (int)$existing['organization_id'];
             Database::execute(
-                "UPDATE stations SET ip_address = ?, mac_address = ?, os_name = ?, os_version = ?, configuration_serial = ?, last_checkin = CURRENT_TIMESTAMP WHERE id = ?",
+                "UPDATE stations SET ip_address = ?, mac_address = ?, os_name = ?, os_version = ?, serial_aplicado = ?, last_checkin = CURRENT_TIMESTAMP WHERE id = ?",
                 [$ipAddress, $macAddress, $osName, $osVersion, $configSerial, $existing['id']]
             );
             $stationId = $existing['id'];
@@ -2174,7 +2174,7 @@ function handleStationCheckin($input) {
             $isNew = true;
 
             Database::execute(
-                "INSERT INTO stations (hostname, ip_address, mac_address, os_name, os_version, organization_id, configuration_serial, last_checkin, token)
+                "INSERT INTO stations (hostname, ip_address, mac_address, os_name, os_version, organization_id, serial_aplicado, last_checkin, token)
                  VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)",
                 [$hostname, $ipAddress, $macAddress, $osName, $osVersion, $organizationId, $configSerial, $newToken]
             );

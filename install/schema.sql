@@ -378,7 +378,7 @@ CREATE TABLE IF NOT EXISTS stations (
     os_version VARCHAR(50),
     last_checkin TIMESTAMP,
     status VARCHAR(50) DEFAULT 'never_connected',
-    configuration_serial INTEGER DEFAULT 0,
+    serial_aplicado INTEGER DEFAULT 0,
     token TEXT UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

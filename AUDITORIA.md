@@ -31,7 +31,7 @@ O SeederLinux Lite é um sistema funcional em estágio MVP avançado, com gestã
 | 2.5 | Médio | `schema.sql` — `audit_events` | Sem retenção/rotação. Cresce indefinidamente. | Degradação de performance em consultas de auditoria após meses/anos. | Particionar por mês ou adicionar job de purga (ex: manter 365 dias). |
 | 2.6 | Baixo | `schema.sql` — booleanos | Sem `CHECK` constraints em colunas booleanas (`is_active`, `is_core`, `is_required`). | Aceita valores não-booleanos em INSERTs diretos. | Adicionar `CHECK (is_active IN (TRUE, FALSE))` onde aplicável. |
 | 2.7 | Baixo | `schema.sql` — `script_versions` | `UNIQUE(script_id, version_number)` mas `om_script_versions` não tem constraint equivalente. | Inconsistência entre escopos de versionamento. | Adicionar `UNIQUE(organization_id, script_id, version_number)` em `om_script_versions`. |
-| 2.8 | Baixo | `supabase/migrations/20260819020937_add_settings_table.sql` | Migração Supabase existe, mas o projeto usa PostgreSQL local e `schema.sql` já cria `settings`. | Confusão sobre fonte da verdade; migração Supabase não se aplica. | Remover `supabase/migrations/` ou documentar que é resíduo. |
+| 2.8 | Resolvido | ~~`supabase/migrations/`~~ | Diretório `supabase/migrations/` removido. O projeto usa PostgreSQL local e `schema.sql` é a única fonte de verdade. | — | — |
 
 ---
 

@@ -53,7 +53,7 @@ function requireAuth() {
 
 function bumpOrgSerial($orgId) {
     Database::execute(
-        "UPDATE organizations SET serial_config = serial_config + 1, updated_at = NOW() WHERE id = ?",
+        "UPDATE organizations SET serial_config = serial_config + 1 WHERE id = ?",
         [$orgId]
     );
     return true;
