@@ -32,6 +32,49 @@ echo ">>> Homepage: $HOMEPAGE"
 echo ">>> Modo de proxy: $PROXY_MODE"
 
 # ============================================================
+# Montar o bloco "Proxy" do policies.json de forma dinamica.
+#
+# CORRECAO: a versao anterior tinha "Proxy": {"Mode": "system"} FIXO
+# no JSON, independente de PROXY_MODE. Como policies.json e o
+# mecanismo mais novo do Firefox e tem precedencia sobre o
+# autoconfig.js/lockPref legado (usado mais abaixo para PAC/MANUAL),
+# na pratica o proxy configurado pela OM (manual ou PAC) nunca
+# chegava a valer - o Firefox sempre ficava em "usar proxy do
+# sistema". Agora o bloco reflete PROXY_MODE de verdade.
+# ============================================================
+case "$PROXY_MODE" in
+    MANUAL)
+        FIREFOX_PROXY_JSON="\"Proxy\": {
+            \"Mode\": \"manual\",
+            \"HTTPProxy\": \"${PROXY_HTTP}:${PROXY_PORTA}\",
+            \"SSLProxy\": \"${PROXY_HTTP}:${PROXY_PORTA}\",
+            \"Passthrough\": \"${NO_PROXY}\",
+            \"Locked\": true
+        }"
+        ;;
+    PAC)
+        FIREFOX_PROXY_JSON="\"Proxy\": {
+            \"Mode\": \"autoConfig\",
+            \"AutoConfigURL\": \"${PAC_URL}\",
+            \"Passthrough\": \"${NO_PROXY}\",
+            \"Locked\": true
+        }"
+        ;;
+    NONE)
+        FIREFOX_PROXY_JSON="\"Proxy\": {
+            \"Mode\": \"none\",
+            \"Locked\": true
+        }"
+        ;;
+    *)
+        FIREFOX_PROXY_JSON="\"Proxy\": {
+            \"Mode\": \"system\",
+            \"Locked\": true
+        }"
+        ;;
+esac
+
+# ============================================================
 # Firefox ESR - Politicas (policies.json)
 # ============================================================
 echo ">>> Configurando politicas do Firefox ESR..."
@@ -61,10 +104,7 @@ cat > /usr/lib/firefox-esr/distribution/policies.json <<EOF
                 }
             ]
         },
-        "Proxy": {
-            "Mode": "system",
-            "Locked": true
-        },
+        ${FIREFOX_PROXY_JSON},
         "Certificates": {
             "ImportEnterpriseRoots": true
         },
