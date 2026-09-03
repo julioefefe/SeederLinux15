@@ -1892,7 +1892,9 @@ function handleGenerateBundle($input) {
         [$orgId, $bundleId]
     );
 
-    bumpOrgSerial($orgId);
+    if (!empty($input['force_notify'])) {
+        bumpOrgSerial($orgId);
+    }
 
         log_audit('GENERATE', 'bundles', $bundleId, [
             'organization' => $org['acronym'],

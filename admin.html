@@ -310,6 +310,13 @@
                                 <div class="card-header"><h3 class="card-title">Gerar Bundle</h3></div>
                                 <div class="card-body">
                                     <p class="text-slate-400 mb-4">Selecione os scripts e gere o bundle para deploy.</p>
+                                    <div class="form-group mb-4">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" id="force-notify" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-slate-300 font-medium">Forçar atualização das estações</span>
+                                        </label>
+                                        <p class="text-sm text-slate-500 mt-1 ml-6">Incrementa o serial de configuração e notifica as estações.</p>
+                                    </div>
                                     <button id="btn-generate-bundle" class="btn btn-success btn-lg">Gerar Bundle</button>
                                 </div>
                             </div>

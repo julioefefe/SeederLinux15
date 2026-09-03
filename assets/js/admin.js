@@ -2466,13 +2466,16 @@ async function generateBundle() {
     // Se o usuario cancelar (prompt retorna null), aborta a geracao
     if (description === null) return;
 
+    const forceNotify = document.getElementById('force-notify')?.checked ?? false;
+
     Toast.info('Gerando bundle...');
 
     try {
         const res = await API.post('generate-bundle', {
             organization_id: currentOrgId,
             scripts: selected,
-            description: description.trim()
+            description: description.trim(),
+            force_notify: forceNotify
         });
         if (res.success) {
             Toast.success('Bundle gerado com sucesso');
