@@ -56,6 +56,7 @@ function bumpOrgSerial($orgId) {
         "UPDATE organizations SET serial_config = serial_config + 1, updated_at = NOW() WHERE id = ?",
         [$orgId]
     );
+    return true;
 }
 
 function isAdminGap() {
