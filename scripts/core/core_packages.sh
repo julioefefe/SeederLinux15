@@ -5,6 +5,17 @@
 # ============================================================================
 # Instala todos os pacotes necessarios para o funcionamento da estacao:
 # ferramentas de rede, autenticacao, sistema grafico, utilitarios.
+#
+# CORRECAO: a instalacao do ambiente grafico (DE) antes era uma unica
+# chamada atomica "apt-get install -y pacote1 pacote2 pacote3" sem
+# fallback. Como este script roda no nivel raiz do bundle (sem
+# subshell) sob `set -e`, se QUALQUER nome de pacote estivesse errado,
+# obsoleto ou renomeado numa versao mais nova da distro, o apt-get
+# falhava e O BUNDLE INTEIRO ABORTAVA ali, na etapa 03 - nunca chegando
+# no ingresso AD, sessao, etc. Agora a instalacao de DE segue o mesmo
+# padrao ja usado em AUTH_PACKAGES: loop pacote a pacote, avisa e
+# continua em vez de derrubar o bundle.
+#
 # Os placeholders VARIAVEL são substituídos automaticamente
 # pelo sistema na geração do bundle.
 # ============================================================================
@@ -33,6 +44,7 @@ detectar_de() {
     elif command -v gnome-session &>/dev/null; then echo "gnome"
     elif command -v startxfce4 &>/dev/null; then echo "xfce"
     elif command -v startplasma-x11 &>/dev/null; then echo "kde"
+    elif command -v lxqt-session &>/dev/null; then echo "lxqt"
     elif command -v startlxde &>/dev/null; then echo "lxde"
     else echo "unknown"
     fi
@@ -54,6 +66,25 @@ export DETECTED_DE DETECTED_DM
 
 echo ">>> DE detectado na estacao: $DETECTED_DE"
 echo ">>> DM detectado na estacao: $DETECTED_DM"
+
+# ============================================================
+# Instalar pacotes com fallback por item (nao aborta o bundle
+# se um pacote individual nao existir/falhar)
+# ============================================================
+instalar_pacotes() {
+    # $1 = nome do grupo (so para o log), restante = lista de pacotes
+    local grupo="$1"; shift
+    local falhou=0
+    for pkg in "$@"; do
+        if ! apt-get install -y "$pkg" 2>/dev/null; then
+            echo ">>> AVISO [$grupo]: falha ao instalar pacote '$pkg'"
+            falhou=$((falhou + 1))
+        fi
+    done
+    if [ "$falhou" -gt 0 ]; then
+        echo ">>> [$grupo] concluido com $falhou pacote(s) nao instalado(s)."
+    fi
+}
 
 # ============================================================
 # Atualizar sistema
@@ -143,11 +174,7 @@ AUTH_PACKAGES=(
     network-manager-gnome
 )
 
-for pkg in "${AUTH_PACKAGES[@]}"; do
-    if ! apt-get install -y "$pkg" 2>/dev/null; then
-        echo ">>> AVISO: Falha ao instalar pacote: $pkg"
-    fi
-done
+instalar_pacotes "auth" "${AUTH_PACKAGES[@]}"
 
 # ============================================================
 # Pacotes do ambiente grafico (OPCIONAL)
@@ -155,31 +182,52 @@ done
 # Por padrao NAO instala DE. Somente instala se INSTALL_DESKTOP=true
 # e DESKTOP_ENV estiver definido. Caso contrario, usa o ambiente
 # grafico ja presente na estacao (detectado em DETECTED_DE).
+#
+# Cada DE instala pacote a pacote (instalar_pacotes) em vez de uma
+# unica chamada atomica: se um nome de pacote estiver errado/renomeado
+# numa versao mais nova da distro, avisa e continua os demais, em vez
+# de abortar o bundle inteiro.
 if [ "$INSTALL_DESKTOP" = "true" ] && [ -n "$DESKTOP_ENV" ] && [ "$DESKTOP_ENV" != "" ]; then
     echo ">>> Instalando ambiente grafico solicitado: $DESKTOP_ENV"
     case "$DESKTOP_ENV" in
         cinnamon)
-            apt-get install -y cinnamon cinnamon-core lightdm
+            instalar_pacotes "DE-cinnamon" cinnamon cinnamon-common lightdm lightdm-gtk-greeter
             ;;
         mate)
-            apt-get install -y mate mate-core mate-desktop-environment lightdm
+            instalar_pacotes "DE-mate" mate-desktop-environment mate-desktop-environment-extras lightdm lightdm-gtk-greeter
             ;;
         gnome)
-            apt-get install -y gnome gnome-core gdm3
+            instalar_pacotes "DE-gnome" gnome-shell gnome-session gnome-terminal gdm3
             ;;
         xfce)
-            apt-get install -y xfce4 xfce4-goodies lightdm
+            instalar_pacotes "DE-xfce" xfce4 xfce4-goodies lightdm lightdm-gtk-greeter
             ;;
         kde)
-            apt-get install -y kde-plasma-desktop sddm
+            instalar_pacotes "DE-kde" kde-plasma-desktop sddm
+            ;;
+        lxqt)
+            instalar_pacotes "DE-lxqt" lxqt sddm
             ;;
         lxde)
-            apt-get install -y lxde lightdm
+            instalar_pacotes "DE-lxde" lxde lightdm lightdm-gtk-greeter
             ;;
         *)
             echo ">>> AVISO: Ambiente grafico nao reconhecido: $DESKTOP_ENV"
             echo ">>> Nenhum DE sera instalado. Usando o ja presente: $DETECTED_DE"
             ;;
+    esac
+
+    # Verificacao pos-instalacao: alerta se, mesmo apos o loop, o DE
+    # pedido continua ausente (ajuda a diagnosticar nomes de pacote
+    # desatualizados sem precisar vasculhar o log inteiro)
+    case "$DESKTOP_ENV" in
+        cinnamon) command -v cinnamon-session &>/dev/null || echo ">>> AVISO: cinnamon-session nao encontrado apos instalacao." ;;
+        mate)     command -v mate-session &>/dev/null || echo ">>> AVISO: mate-session nao encontrado apos instalacao." ;;
+        gnome)    command -v gnome-session &>/dev/null || echo ">>> AVISO: gnome-session nao encontrado apos instalacao." ;;
+        xfce)     command -v startxfce4 &>/dev/null || echo ">>> AVISO: startxfce4 nao encontrado apos instalacao." ;;
+        kde)      command -v startplasma-x11 &>/dev/null || echo ">>> AVISO: startplasma-x11 nao encontrado apos instalacao." ;;
+        lxqt)     command -v lxqt-session &>/dev/null || echo ">>> AVISO: lxqt-session nao encontrado apos instalacao." ;;
+        lxde)     command -v startlxde &>/dev/null || echo ">>> AVISO: startlxde nao encontrado apos instalacao." ;;
     esac
 else
     echo ">>> INSTALL_DESKTOP != true. Nao instalando DE."
@@ -220,7 +268,7 @@ EXTRA_PACKAGES=(
     geoclue-2.0
 )
 
-apt-get install -y "${EXTRA_PACKAGES[@]}" || true
+instalar_pacotes "extras" "${EXTRA_PACKAGES[@]}"
 
 # ============================================================
 # OCS Inventory Agent (pacote critico para inventario)
