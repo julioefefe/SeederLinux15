@@ -557,8 +557,9 @@ function handleMirrorStatus() {
          ORDER BY d.name, d.id, v.version"
     );
     foreach ($distroRows as $row) {
-        if (!isset($availableDistros[$row['id']])) {
-            $availableDistros[$row['id']] = [
+        $distroKey = $row['name'];
+        if (!isset($availableDistros[$distroKey])) {
+            $availableDistros[$distroKey] = [
                 'id' => (int)$row['id'],
                 'name' => $row['name'],
                 'codename' => $row['codename'],
@@ -572,7 +573,7 @@ function handleMirrorStatus() {
             ];
         }
         if ($row['version'] !== null) {
-            $availableDistros[$row['id']]['versions'][] = [
+            $availableDistros[$distroKey]['versions'][] = [
                 'id' => (int)$row['version_id'],
                 'version' => $row['version'],
                 'status' => $row['status'],

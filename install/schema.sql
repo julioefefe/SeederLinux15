@@ -524,6 +524,44 @@ CREATE TABLE IF NOT EXISTS mirror.organization_repository_settings (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_distros_name_codename
     ON mirror.distros(name, codename);
+DO $$
+DECLARE
+    distro RECORD;
+BEGIN
+    FOR distro IN
+        SELECT name, MIN(id) AS keeper_id
+        FROM mirror.distros
+        GROUP BY name
+        HAVING COUNT(*) > 1
+    LOOP
+        UPDATE mirror.versions
+        SET distro_id = distro.keeper_id
+        WHERE distro_id IN (
+            SELECT id FROM mirror.distros
+            WHERE name = distro.name AND id <> distro.keeper_id
+        );
+        UPDATE mirror.distros
+        SET base_distro_id = distro.keeper_id
+        WHERE base_distro_id IN (
+            SELECT id FROM mirror.distros
+            WHERE name = distro.name AND id <> distro.keeper_id
+        );
+        DELETE FROM mirror.distros
+        WHERE name = distro.name AND id <> distro.keeper_id;
+    END LOOP;
+
+    UPDATE mirror.distros
+    SET codename = CASE name
+        WHEN 'Debian' THEN 'debian'
+        WHEN 'Ubuntu' THEN 'ubuntu'
+        WHEN 'Linux Mint' THEN 'mint'
+        WHEN 'Zorin' THEN 'zorin'
+        ELSE LOWER(name)
+    END;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_distros_name
+    ON mirror.distros(name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_versions_distro_version
     ON mirror.versions(distro_id, version);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_org_repository_settings_org
@@ -535,37 +573,36 @@ SELECT 1, FALSE, 'aptly', '/var/lib/seederlinux/mirror', FALSE, TRUE, 24, TRUE, 
 WHERE NOT EXISTS (SELECT 1 FROM mirror.config);
 
 INSERT INTO mirror.distros (name, codename) VALUES
-    ('Debian', 'bookworm'),
-    ('Debian', 'trixie'),
-    ('Debian', 'forky'),
-    ('Ubuntu', 'jammy'),
-    ('Ubuntu', 'noble'),
-    ('Linux Mint', 'wilma'),
-    ('Zorin', 'jammy')
-ON CONFLICT (name, codename) DO NOTHING;
+    ('Debian', 'debian'),
+    ('Ubuntu', 'ubuntu'),
+    ('Linux Mint', 'mint'),
+    ('Zorin', 'zorin')
+ON CONFLICT (name) DO NOTHING;
 
 UPDATE mirror.distros AS child
 SET base_distro_id = base.id
 FROM mirror.distros AS base
 WHERE child.name = 'Linux Mint'
-  AND base.name = 'Ubuntu'
-  AND base.codename = 'noble';
+    AND base.name = 'Ubuntu';
 
 UPDATE mirror.distros AS child
 SET base_distro_id = base.id
 FROM mirror.distros AS base
 WHERE child.name = 'Zorin'
-    AND base.name = 'Ubuntu'
-    AND base.codename = 'jammy';
+    AND base.name = 'Ubuntu';
 
 INSERT INTO mirror.versions (distro_id, version, status)
-SELECT id, codename,
-    CASE
-        WHEN codename IN ('trixie', 'noble', 'wilma') THEN 'current'
-        WHEN codename IN ('bookworm', 'jammy') THEN 'old'
-        WHEN codename = 'forky' THEN 'future'
-    END
-FROM mirror.distros
+SELECT d.id, seed.version, seed.status
+FROM mirror.distros d
+JOIN (VALUES
+    ('Debian', 'bookworm', 'old'),
+    ('Debian', 'trixie', 'current'),
+    ('Debian', 'forky', 'future'),
+    ('Ubuntu', 'jammy', 'old'),
+    ('Ubuntu', 'noble', 'current'),
+    ('Linux Mint', 'wilma', 'current'),
+    ('Zorin', 'jammy', 'old')
+) AS seed(name, version, status) ON seed.name = d.name
 ON CONFLICT (distro_id, version) DO NOTHING;
 
 -- ============================================================================

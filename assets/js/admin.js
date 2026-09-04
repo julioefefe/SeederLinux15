@@ -469,8 +469,8 @@ function renderMirrorDistros(distros) {
     container.innerHTML = visibleDistros.map(distro => `
         <div class="mirror-distro-block">
             <div class="mirror-distro-heading">
-                <label class="mirror-check-label"><input type="checkbox" data-mirror-distro value="${distro.id}" ${mirrorIsActive(distro.active) ? 'checked' : ''}><strong>${Utils.escapeHtml(distro.name)} ${Utils.escapeHtml(distro.codename)}</strong></label>
-                ${distro.base_distro ? `<span class="mirror-base-relation">Base: ${Utils.escapeHtml(distro.base_distro.name)} ${Utils.escapeHtml(distro.base_distro.codename)}</span>` : ''}
+                <label class="mirror-check-label"><input type="checkbox" data-mirror-distro value="${distro.id}" ${mirrorIsActive(distro.active) ? 'checked' : ''}><strong>${Utils.escapeHtml(distro.name)}</strong></label>
+                ${distro.base_distro ? `<span class="mirror-base-relation">Base: ${Utils.escapeHtml(distro.base_distro.name)}</span>` : ''}
             </div>
             <div class="mirror-catalog-actions"><button type="button" class="btn btn-secondary btn-sm" onclick="editMirrorDistro(${distro.id})">Editar distro</button><button type="button" class="btn btn-secondary btn-sm" onclick="toggleMirrorDistro(${distro.id})">${mirrorIsActive(distro.active) ? 'Desativar' : 'Ativar'}</button><button type="button" class="btn btn-primary btn-sm" onclick="addMirrorVersion(${distro.id})">Adicionar versão</button></div>
             <div class="mirror-version-list">
@@ -496,7 +496,7 @@ function openMirrorCatalogForm(type, item = {}, distroId = null) {
         document.getElementById('mirror-catalog-name').value = item.name || '';
         document.getElementById('mirror-catalog-codename').value = item.codename || '';
         const baseSelect = document.getElementById('mirror-catalog-base');
-        baseSelect.innerHTML = '<option value="">Nenhuma</option>' + mirrorCatalog.filter(distro => Number(distro.id) !== Number(item.id)).map(distro => `<option value="${distro.id}">${Utils.escapeHtml(distro.name)} ${Utils.escapeHtml(distro.codename)}</option>`).join('');
+        baseSelect.innerHTML = '<option value="">Nenhuma</option>' + mirrorCatalog.filter(distro => Number(distro.id) !== Number(item.id)).map(distro => `<option value="${distro.id}">${Utils.escapeHtml(distro.name)}</option>`).join('');
         baseSelect.value = item.base_distro?.id || '';
     } else {
         document.getElementById('mirror-catalog-version').value = item.version || '';
