@@ -79,10 +79,12 @@ $release = 'MVP 1.0';
       </section>
 
       <section class="strip" aria-label="Indicadores">
-        <div><strong id="stat-bundles">-</strong><span>bundles publicados</span></div>
-        <div><strong>22</strong><span>módulos de configuração</span></div>
-        <div><strong id="stat-updated">-</strong><span>último bundle</span></div>
-        <div><strong>100%</strong><span>local, sem nuvem</span></div>
+        <div class="strip-inner">
+          <div><strong id="stat-bundles">-</strong><span>bundles publicados</span></div>
+          <div><strong>22</strong><span>módulos de configuração</span></div>
+          <div><strong id="stat-updated">-</strong><span>último bundle</span></div>
+          <div><strong>100%</strong><span>local, sem nuvem</span></div>
+        </div>
       </section>
 
       <section class="block" id="beneficios" aria-labelledby="benefits-title">
