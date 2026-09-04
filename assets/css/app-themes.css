@@ -1,0 +1,85 @@
+/* ============================================================
+   Temas globais — admin e login
+   O tema "classic" é o visual padrão (sem atributo).
+   O tema publicado (Configurações -> Tela pública) define
+   data-app-theme no <html> e reestiliza painel e login.
+   ============================================================ */
+
+/* ---------- Tema MODERNO (paleta da página pública moderna) ---------- */
+html[data-app-theme="modern"] {
+    --primary: #49cfbf;
+    --primary-dark: #2fb3a3;
+    --secondary: #8ce1a3;
+    --info: #75e6d0;
+    --tag-chip-bg: rgba(73, 207, 191, 0.14);
+    --tag-chip-border: rgba(73, 207, 191, 0.4);
+    --tag-chip-text: #b8ece2;
+}
+
+html[data-app-theme="modern"] body,
+html[data-app-theme="modern"] button,
+html[data-app-theme="modern"] input,
+html[data-app-theme="modern"] select,
+html[data-app-theme="modern"] textarea {
+    font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html[data-app-theme="modern"]:not([data-theme="light"]) {
+    --bg-dark: #07111f;
+    --bg-darker: #050c18;
+    --bg-card: #0d1c30;
+    --border: #1c3450;
+    --border-subtle: rgba(141, 173, 203, 0.2);
+    --bg-header: rgba(13, 28, 48, 0.85);
+    --bg-table-header: rgba(0, 0, 0, 0.25);
+    --bg-toast: rgba(7, 17, 31, 0.96);
+    --bg-tooltip: rgba(7, 17, 31, 0.96);
+    --hover-overlay: rgba(117, 230, 208, 0.06);
+    --hover-overlay-strong: rgba(117, 230, 208, 0.12);
+}
+
+/* ---------- Tema SOLAR (laranja, quente, energia) ---------- */
+html[data-app-theme="solar"] {
+    --primary: #f97316;
+    --primary-dark: #ea580c;
+    --secondary: #fbbf24;
+    --warning: #f59e0b;
+    --info: #fb923c;
+    --tag-chip-bg: rgba(249, 115, 22, 0.14);
+    --tag-chip-border: rgba(249, 115, 22, 0.4);
+    --tag-chip-text: #fed7aa;
+}
+
+html[data-app-theme="solar"] body,
+html[data-app-theme="solar"] button,
+html[data-app-theme="solar"] input,
+html[data-app-theme="solar"] select,
+html[data-app-theme="solar"] textarea {
+    font-family: 'Sora', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Efeitos visuais do tema Solar no painel: botões com gradiente e brilho no item ativo */
+html[data-app-theme="solar"] .btn-primary {
+    border: 0;
+    color: #1c1006;
+    background: linear-gradient(120deg, #f97316, #fbbf24);
+    box-shadow: 0 10px 26px rgba(249, 115, 22, 0.35);
+}
+html[data-app-theme="solar"] .btn-primary:hover { filter: brightness(1.07); }
+html[data-app-theme="solar"] .nav-item.active { box-shadow: inset 3px 0 0 0 var(--primary); text-shadow: 0 0 18px rgba(249, 115, 22, 0.45); }
+
+html[data-app-theme="solar"]:not([data-theme="light"]) {
+    --bg-dark: #171009;
+    --bg-darker: #0f0a06;
+    --bg-card: #231610;
+    --border: #3f2a17;
+    --border-subtle: rgba(251, 191, 36, 0.2);
+    --bg-header: rgba(35, 22, 16, 0.85);
+    --bg-table-header: rgba(0, 0, 0, 0.28);
+    --bg-input: rgba(0, 0, 0, 0.32);
+    --bg-toast: rgba(23, 16, 9, 0.96);
+    --bg-tooltip: rgba(23, 16, 9, 0.96);
+    --hover-overlay: rgba(249, 115, 22, 0.07);
+    --hover-overlay-strong: rgba(249, 115, 22, 0.14);
+    --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+}

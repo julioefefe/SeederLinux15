@@ -4,8 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - SeederLinux Lite</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        (function () {
+            try {
+                fetch('/api/?action=public-theme', { cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res && res.success && res.data && res.data.theme && res.data.theme !== 'classic') {
+                            document.documentElement.setAttribute('data-app-theme', res.data.theme);
+                        }
+                    })
+                    .catch(function () {});
+            } catch (e) {}
+        })();
+    </script>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/app-themes.css">
     <style>
         body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); }
         .login-card { max-width: 420px; margin: auto; }

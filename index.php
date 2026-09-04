@@ -9,7 +9,7 @@ header('Pragma: no-cache');
 $theme = 'classic';
 try {
     $row = Database::fetchOne("SELECT value FROM settings WHERE key = 'public_theme'");
-    if ($row && in_array($row['value'], ['classic', 'modern'], true)) {
+    if ($row && in_array($row['value'], ['classic', 'modern', 'solar'], true)) {
         $theme = $row['value'];
     }
 } catch (Throwable $e) {
@@ -18,6 +18,8 @@ try {
 
 if ($theme === 'modern') {
     require __DIR__ . '/public/index.php';
+} elseif ($theme === 'solar') {
+    require __DIR__ . '/public/solar.php';
 } else {
     require __DIR__ . '/index.html';
 }

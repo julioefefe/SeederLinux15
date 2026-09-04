@@ -3931,7 +3931,7 @@ function handleResetScriptOrder() {
 function handleGetPublicTheme() {
     try {
         $row = Database::fetchOne("SELECT value FROM settings WHERE key = 'public_theme'");
-        $theme = ($row && in_array($row['value'], ['classic', 'modern'], true)) ? $row['value'] : 'classic';
+        $theme = ($row && in_array($row['value'], ['classic', 'modern', 'solar'], true)) ? $row['value'] : 'classic';
         jsonSuccess(['theme' => $theme]);
     } catch (Throwable $e) {
         jsonSuccess(['theme' => 'classic']);
@@ -3942,8 +3942,8 @@ function handleSetPublicTheme($input) {
     if (!isAdminGap()) jsonError('Sem permissao: apenas admin_gap pode alterar configuracoes', 403);
 
     $theme = sanitizeInput($input['theme'] ?? '');
-    if (!in_array($theme, ['classic', 'modern'], true)) {
-        jsonError('Valor invalido. Use: classic ou modern');
+    if (!in_array($theme, ['classic', 'modern', 'solar'], true)) {
+        jsonError('Valor invalido. Use: classic, modern ou solar');
     }
 
     Database::execute(
