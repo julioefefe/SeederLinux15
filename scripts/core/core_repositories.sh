@@ -38,6 +38,11 @@ REPOSITORY_MINT_URL="{{REPOSITORY_MINT_URL}}"
 REPOSITORY_ZORIN_ENABLED="{{REPOSITORY_ZORIN_ENABLED}}"
 REPOSITORY_ZORIN_URL="{{REPOSITORY_ZORIN_URL}}"
 
+# CORRECAO: faltava tratamento de NON_INTERACTIVE (ja usado em
+# core_dns.sh/core_domain.sh). Sem isso, os `read -p` abaixo
+# dependiam do stdin do cron vir vazio por acaso para nao travar.
+NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
+
 echo ">>> Modo de repositorio: $REPOSITORY_MODE"
 
 # ============================================================
@@ -241,32 +246,50 @@ EOF
         ;;
 
     CUSTOM)
+        CUSTOM_SKIP="false"
         if [ -z "$REPOSITORY_URL" ] || [ "$REPOSITORY_URL" = "" ]; then
             echo ">>> ERRO: REPOSITORY_URL nao definido para modo CUSTOM"
-            read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
-            if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
-                echo ">>> Instalacao abortada pelo usuario."
-                exit 1
+            if [ "$NON_INTERACTIVE" = "true" ]; then
+                echo ">>> Modo nao interativo: mantendo sources.list atual (nao sobrescrevendo com valor vazio)."
+                CUSTOM_SKIP="true"
+            else
+                read -p ">>> REPOSITORY_URL vazio. Manter sources.list atual e continuar? (S/n): " CONTINUE
+                if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+                    echo ">>> Prosseguindo mesmo assim - mantendo sources.list atual (nao seria seguro escrever vazio)."
+                fi
+                CUSTOM_SKIP="true"
             fi
-            echo ">>> Continuando apesar do erro..."
         fi
 
-        echo ">>> Configurando repositorio personalizado"
-        backup_sources
+        if [ "$CUSTOM_SKIP" = "true" ]; then
+            echo ">>> [02] Repositorio CUSTOM nao aplicado (REPOSITORY_URL ausente) - sources.list mantido como estava."
+        else
+            echo ">>> Configurando repositorio personalizado"
+            backup_sources
 
-        cat > /etc/apt/sources.list <<EOF
+            cat > /etc/apt/sources.list <<EOF
 $REPOSITORY_URL
 EOF
+        fi
         ;;
 
     *)
         echo ">>> ERRO: Modo de repositorio invalido: $REPOSITORY_MODE"
-        read -p ">>> Deseja continuar mesmo assim? (S/n): " CONTINUE
-        if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
-            echo ">>> Instalacao abortada pelo usuario."
-            exit 1
+        # CORRECAO: antes dava `exit 1` aqui, abortando o bundle
+        # inteiro (script roda sem subshell, e e a etapa 02 - matar
+        # tudo aqui significa nunca chegar no ingresso AD nem em
+        # nada mais). Um REPOSITORY_MODE invalido e erro de config
+        # da OM, nao motivo para travar o provisionamento inteiro -
+        # mantem sources.list como esta e segue.
+        if [ "$NON_INTERACTIVE" = "true" ]; then
+            echo ">>> Modo nao interativo: mantendo sources.list atual."
+        else
+            read -p ">>> REPOSITORY_MODE invalido. Continuar sem alterar repositorios? (S/n): " CONTINUE
+            if [[ "$CONTINUE" =~ ^[Nn]$ ]]; then
+                echo ">>> Prosseguindo mesmo assim (sources.list mantido como esta)."
+            fi
         fi
-        echo ">>> Continuando apesar do erro..."
+        echo ">>> [02] Nenhuma alteracao de repositorio aplicada (REPOSITORY_MODE='$REPOSITORY_MODE' invalido)."
         ;;
 esac
 
