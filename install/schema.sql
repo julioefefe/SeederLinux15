@@ -455,6 +455,7 @@ CREATE TABLE IF NOT EXISTS mirror.config (
     enabled BOOLEAN DEFAULT FALSE,
     tool VARCHAR(20) DEFAULT 'aptly',
     mirror_base_path VARCHAR(255) NOT NULL DEFAULT '/var/lib/seederlinux/mirror',
+    mirror_url_base VARCHAR(255) NOT NULL DEFAULT '',
     path_locked BOOLEAN DEFAULT FALSE,
     verify_gpg BOOLEAN DEFAULT TRUE,
     sync_interval_hours INTEGER DEFAULT 24,
@@ -466,6 +467,7 @@ CREATE TABLE IF NOT EXISTS mirror.config (
 );
 
 ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS path_locked BOOLEAN DEFAULT FALSE;
+ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS mirror_url_base VARCHAR(255) NOT NULL DEFAULT '';
 ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS auto_cleanup_enabled BOOLEAN DEFAULT TRUE;
 ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS retention_snapshots INTEGER DEFAULT 2;
 ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS quarantine_days INTEGER DEFAULT 7;

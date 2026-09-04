@@ -2087,6 +2087,7 @@ textarea[style*="background:#0a0f1a"] {
 .mirror-chip { border: 1px solid var(--border); border-radius: 999px; padding: .45rem .7rem; font-size: .8rem; background: var(--bg-darker); }
 .mirror-chip:has(input:checked) { border-color: var(--primary); color: var(--text); background: rgba(59, 130, 246, .14); }
 .mirror-org-name { display: block; color: var(--text-dim); font-size: .75rem; margin-top: .15rem; }
+.mirror-org-repository { display: block; color: var(--text-dim); font-size: .68rem; margin-top: .12rem; overflow-wrap: anywhere; }
 .mirror-priority { min-width: 90px; width: 110px; padding: .5rem .65rem; }
 
 @media (max-width: 900px) {

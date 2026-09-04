@@ -576,7 +576,7 @@ function renderMirrorOrganizations(settings) {
     if (!body) return;
     body.innerHTML = settings.length ? settings.map(org => `
         <tr>
-            <td><strong>${Utils.escapeHtml(org.acronym)}</strong><span class="mirror-org-name">${Utils.escapeHtml(org.name)}</span></td>
+            <td><strong>${Utils.escapeHtml(org.acronym)}</strong><span class="mirror-org-name">${Utils.escapeHtml(org.name)}</span><span class="mirror-org-repository">Modo: ${Utils.escapeHtml(org.repository_mode || '-')}</span><span class="mirror-org-repository">Debian: ${Utils.escapeHtml(org.repository_debian_url || '-')}</span></td>
             <td><label class="toggle-switch"><input type="checkbox" data-mirror-org-enabled="${org.id}" onchange="saveMirrorOrgSetting(${org.id})" ${org.use_local_mirror === true || org.use_local_mirror === 't' ? 'checked' : ''}><span class="toggle-slider"></span></label></td>
             <td><input class="form-input mirror-priority" type="number" min="0" max="10000" value="${org.mirror_priority !== null && org.mirror_priority !== undefined ? Number(org.mirror_priority) : 100}" data-mirror-org-priority="${org.id}"></td>
             <td class="text-right"><button type="button" class="btn btn-secondary btn-sm" onclick="saveMirrorOrgSetting(${org.id})">Salvar</button></td>
@@ -594,6 +594,7 @@ async function loadMirror() {
         mirrorBasePath = data.mirror_base_path || '';
         document.getElementById('mirror-enabled').checked = Boolean(data.enabled);
         document.getElementById('mirror-tool').value = data.tool || 'aptly';
+        document.getElementById('mirror-url-base').value = data.mirror_url_base || '';
         document.getElementById('mirror-base-path-display').textContent = mirrorBasePath || '-';
         document.getElementById('mirror-verify-gpg').checked = Boolean(data.verify_gpg);
         document.getElementById('mirror-interval').value = data.sync_interval_hours || 24;
@@ -668,6 +669,7 @@ async function saveMirrorConfig() {
             enabled: document.getElementById('mirror-enabled').checked,
             tool: document.getElementById('mirror-tool').value,
             mirror_base_path: mirrorBasePath,
+            mirror_url_base: document.getElementById('mirror-url-base').value.trim(),
             verify_gpg: document.getElementById('mirror-verify-gpg').checked,
             sync_interval_hours: Number(document.getElementById('mirror-interval').value),
             auto_cleanup_enabled: document.getElementById('mirror-auto-cleanup').checked,
@@ -714,7 +716,10 @@ async function saveMirrorOrgSetting(organizationId) {
         });
         if (!res.success) throw new Error(res.error || 'Falha ao salvar preferência');
         Toast.success('Preferência da OM salva.');
-        loadMirror();
+        await loadMirror();
+        if (currentOrgId && Number(currentOrgId) === Number(organizationId)) {
+            await loadVariables(organizationId);
+        }
     } catch (error) {
         Toast.error(error.message || 'Não foi possível salvar a preferência.');
     }

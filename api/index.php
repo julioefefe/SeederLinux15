@@ -530,13 +530,14 @@ function handleSessionCheck() {
 
 function handleMirrorStatus() {
     $config = Database::fetchOne(
-        "SELECT enabled, tool, mirror_base_path, path_locked, verify_gpg, sync_interval_hours,
+        "SELECT enabled, tool, mirror_base_path, mirror_url_base, path_locked, verify_gpg, sync_interval_hours,
                 auto_cleanup_enabled, retention_snapshots, quarantine_days
          FROM mirror.config ORDER BY id LIMIT 1"
     ) ?: [
         'enabled' => false,
         'tool' => 'aptly',
         'mirror_base_path' => '/var/lib/seederlinux/mirror',
+        'mirror_url_base' => '',
         'path_locked' => false,
         'verify_gpg' => true,
         'sync_interval_hours' => 24,
@@ -602,10 +603,19 @@ function handleMirrorStatus() {
     $organizationSettings = Database::fetchAll(
         "SELECT o.id, o.name, o.acronym,
                 COALESCE(s.use_local_mirror, FALSE) AS use_local_mirror,
-                COALESCE(s.mirror_priority, 100) AS mirror_priority
+            COALESCE(s.mirror_priority, 100) AS mirror_priority,
+            MAX(CASE WHEN vd.name = 'REPOSITORY_MODE' THEN ov.value END) AS repository_mode,
+            MAX(CASE WHEN vd.name = 'REPOSITORY_DEBIAN_URL' THEN ov.value END) AS repository_debian_url,
+            MAX(CASE WHEN vd.name = 'REPOSITORY_UBUNTU_URL' THEN ov.value END) AS repository_ubuntu_url,
+            MAX(CASE WHEN vd.name = 'REPOSITORY_MINT_URL' THEN ov.value END) AS repository_mint_url,
+            MAX(CASE WHEN vd.name = 'REPOSITORY_ZORIN_URL' THEN ov.value END) AS repository_zorin_url,
+            MAX(CASE WHEN vd.name = 'REPOSITORY_FALLBACK' THEN ov.value END) AS repository_fallback
          FROM public.organizations o
          LEFT JOIN mirror.organization_repository_settings s ON s.organization_id = o.id
+         LEFT JOIN public.organization_variables ov ON ov.organization_id = o.id
+         LEFT JOIN public.variable_definitions vd ON vd.id = ov.variable_id
          WHERE o.is_active = TRUE
+         GROUP BY o.id, o.name, o.acronym, s.use_local_mirror, s.mirror_priority
          ORDER BY o.acronym"
     );
 
@@ -613,6 +623,7 @@ function handleMirrorStatus() {
         'enabled' => filter_var($config['enabled'], FILTER_VALIDATE_BOOLEAN),
         'tool' => $config['tool'],
         'mirror_base_path' => $config['mirror_base_path'],
+        'mirror_url_base' => $config['mirror_url_base'],
         'path_locked' => filter_var($config['path_locked'], FILTER_VALIDATE_BOOLEAN)
             || filter_var($config['enabled'], FILTER_VALIDATE_BOOLEAN)
             || $hasJobs,
@@ -779,7 +790,7 @@ function handleMirrorJobStatus($input) {
 
 function handleMirrorSaveConfig($input) {
     $currentConfig = Database::fetchOne(
-        "SELECT enabled, tool, mirror_base_path, path_locked, verify_gpg, sync_interval_hours,
+        "SELECT enabled, tool, mirror_base_path, mirror_url_base, path_locked, verify_gpg, sync_interval_hours,
                 auto_cleanup_enabled, retention_snapshots, quarantine_days
          FROM mirror.config ORDER BY id LIMIT 1"
     ) ?: [];
@@ -794,6 +805,9 @@ function handleMirrorSaveConfig($input) {
         : filter_var($currentConfig['auto_cleanup_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN);
     $tool = sanitizeInput($input['tool'] ?? '');
     if ($tool === '') $tool = $currentConfig['tool'] ?? 'aptly';
+    $mirrorUrlBase = array_key_exists('mirror_url_base', $input)
+        ? rtrim(sanitizeInput($input['mirror_url_base']), '/')
+        : ($currentConfig['mirror_url_base'] ?? '');
     $basePath = array_key_exists('mirror_base_path', $input)
         ? sanitizeInput($input['mirror_base_path'])
         : ($currentConfig['mirror_base_path'] ?? '/var/lib/seederlinux/mirror');
@@ -813,6 +827,9 @@ function handleMirrorSaveConfig($input) {
     if ($enabled === null || $verifyGpg === null || $autoCleanup === null) jsonError('Valores booleanos invalidos');
     if (!in_array($tool, ['aptly', 'apt-mirror'], true)) jsonError('Ferramenta de mirror invalida');
     if ($basePath === '' || strlen($basePath) > 255) jsonError('Caminho base invalido');
+    if (strlen($mirrorUrlBase) > 255 || ($mirrorUrlBase !== '' && filter_var($mirrorUrlBase, FILTER_VALIDATE_URL) === false)) {
+        jsonError('URL base do mirror invalida');
+    }
     if ($interval === false || $interval < 1 || $interval > 8760) {
         jsonError('Intervalo deve estar entre 1 e 8760 horas');
     }
@@ -829,13 +846,14 @@ function handleMirrorSaveConfig($input) {
     $nextPathLocked = $pathLocked || $hasJobs || $enabled;
 
     Database::execute(
-        "INSERT INTO mirror.config (id, enabled, tool, mirror_base_path, path_locked, verify_gpg,
+        "INSERT INTO mirror.config (id, enabled, tool, mirror_base_path, mirror_url_base, path_locked, verify_gpg,
                                     sync_interval_hours, auto_cleanup_enabled, retention_snapshots, quarantine_days, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
          ON CONFLICT (id) DO UPDATE SET
              enabled = EXCLUDED.enabled,
              tool = EXCLUDED.tool,
              mirror_base_path = EXCLUDED.mirror_base_path,
+             mirror_url_base = EXCLUDED.mirror_url_base,
              path_locked = EXCLUDED.path_locked,
              verify_gpg = EXCLUDED.verify_gpg,
              sync_interval_hours = EXCLUDED.sync_interval_hours,
@@ -843,7 +861,7 @@ function handleMirrorSaveConfig($input) {
              retention_snapshots = EXCLUDED.retention_snapshots,
              quarantine_days = EXCLUDED.quarantine_days,
              updated_at = NOW()",
-        [mirrorDatabaseBoolean($enabled), $tool, $basePath, mirrorDatabaseBoolean($nextPathLocked),
+        [mirrorDatabaseBoolean($enabled), $tool, $basePath, $mirrorUrlBase, mirrorDatabaseBoolean($nextPathLocked),
          mirrorDatabaseBoolean($verifyGpg), $interval, mirrorDatabaseBoolean($autoCleanup),
          $retentionSnapshots, $quarantineDays]
     );
@@ -852,6 +870,7 @@ function handleMirrorSaveConfig($input) {
         'enabled' => $enabled,
         'tool' => $tool,
         'mirror_base_path' => $basePath,
+        'mirror_url_base' => $mirrorUrlBase,
         'verify_gpg' => $verifyGpg,
         'sync_interval_hours' => $interval,
     ]);
@@ -870,16 +889,62 @@ function handleMirrorSaveOrgSettings($input) {
         jsonError('Organizacao nao encontrada', 404);
     }
 
-    Database::execute(
-        "INSERT INTO mirror.organization_repository_settings
-             (organization_id, use_local_mirror, mirror_priority, updated_at)
-         VALUES (?, ?, ?, NOW())
-         ON CONFLICT (organization_id) DO UPDATE SET
-             use_local_mirror = EXCLUDED.use_local_mirror,
-             mirror_priority = EXCLUDED.mirror_priority,
-             updated_at = NOW()",
-        [$organizationId, mirrorDatabaseBoolean($useLocalMirror), $priority]
+    $mirrorConfig = Database::fetchOne('SELECT mirror_url_base FROM mirror.config ORDER BY id LIMIT 1') ?: ['mirror_url_base' => ''];
+    $mirrorUrlBase = rtrim(sanitizeInput($mirrorConfig['mirror_url_base'] ?? ''), '/');
+    if ($useLocalMirror && $mirrorUrlBase === '') {
+        jsonError('Configure a URL base do mirror antes de ativa-lo para uma OM');
+    }
+
+    $repositoryValues = $useLocalMirror ? [
+        'REPOSITORY_MODE' => 'MIRROR',
+        'REPOSITORY_DEBIAN_URL' => $mirrorUrlBase . '/debian',
+        'REPOSITORY_UBUNTU_URL' => $mirrorUrlBase . '/ubuntu',
+        'REPOSITORY_MINT_URL' => $mirrorUrlBase . '/mint',
+        'REPOSITORY_ZORIN_URL' => $mirrorUrlBase . '/zorin',
+    ] : [
+        'REPOSITORY_MODE' => 'PUBLIC',
+        'REPOSITORY_DEBIAN_URL' => '',
+        'REPOSITORY_UBUNTU_URL' => '',
+        'REPOSITORY_MINT_URL' => '',
+        'REPOSITORY_ZORIN_URL' => '',
+    ];
+    $fallback = Database::fetchOne(
+        "SELECT ov.value FROM public.organization_variables ov
+         JOIN public.variable_definitions vd ON vd.id = ov.variable_id
+         WHERE ov.organization_id = ? AND vd.name = 'REPOSITORY_FALLBACK'",
+        [$organizationId]
     );
+    $repositoryValues['REPOSITORY_FALLBACK'] = $fallback['value'] ?? 'http://deb.debian.org/debian';
+
+    Database::beginTransaction();
+    try {
+        Database::execute(
+            "INSERT INTO mirror.organization_repository_settings
+                 (organization_id, use_local_mirror, mirror_priority, updated_at)
+             VALUES (?, ?, ?, NOW())
+             ON CONFLICT (organization_id) DO UPDATE SET
+                 use_local_mirror = EXCLUDED.use_local_mirror,
+                 mirror_priority = EXCLUDED.mirror_priority,
+                 updated_at = NOW()",
+            [$organizationId, mirrorDatabaseBoolean($useLocalMirror), $priority]
+        );
+
+        foreach ($repositoryValues as $name => $value) {
+            $definition = Database::fetchOne('SELECT id FROM public.variable_definitions WHERE name = ?', [$name]);
+            if (!$definition) continue;
+            Database::execute(
+                "INSERT INTO public.organization_variables (organization_id, variable_id, value, updated_at)
+                 VALUES (?, ?, ?, NOW())
+                 ON CONFLICT (organization_id, variable_id) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+                [$organizationId, $definition['id'], $value]
+            );
+        }
+        bumpOrgSerial($organizationId);
+        Database::commit();
+    } catch (Throwable $e) {
+        Database::rollback();
+        throw $e;
+    }
 
     // Futuramente, ativar uma OM deverá definir REPOSITORY_MODE=MIRROR e preencher
     // automaticamente as variáveis REPOSITORY_*_URL correspondentes.
