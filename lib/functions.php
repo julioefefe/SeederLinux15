@@ -42,7 +42,13 @@ function requireCsrfToken($input = []) {
 function requireAuth() {
     // 1. Verificar token Bearer
     $headers = function_exists('getallheaders') ? getallheaders() : [];
-    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+    $authHeader = '';
+    foreach ($headers as $name => $value) {
+        if (strtolower($name) === 'authorization') {
+            $authHeader = $value;
+            break;
+        }
+    }
 
     if (preg_match('/Bearer\s+(.+)/', $authHeader, $matches)) {
         $token = trim($matches[1]);

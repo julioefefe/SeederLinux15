@@ -526,14 +526,19 @@ function handleSessionCheck() {
 
 function handleMirrorStatus() {
     $config = Database::fetchOne(
-        "SELECT enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours
+        "SELECT enabled, tool, mirror_base_path, path_locked, verify_gpg, sync_interval_hours,
+                auto_cleanup_enabled, retention_snapshots, quarantine_days
          FROM mirror.config ORDER BY id LIMIT 1"
     ) ?: [
         'enabled' => false,
         'tool' => 'aptly',
         'mirror_base_path' => '/var/lib/seederlinux/mirror',
+        'path_locked' => false,
         'verify_gpg' => true,
         'sync_interval_hours' => 24,
+        'auto_cleanup_enabled' => true,
+        'retention_snapshots' => 2,
+        'quarantine_days' => 7,
     ];
 
     $mirrorPath = $config['mirror_base_path'];
@@ -580,6 +585,7 @@ function handleMirrorStatus() {
         "SELECT status FROM mirror.jobs WHERE job_type = 'sync'
          ORDER BY COALESCE(finished_at, started_at, created_at) DESC, id DESC LIMIT 1"
     );
+    $hasJobs = (bool)Database::fetchOne('SELECT 1 FROM mirror.jobs LIMIT 1');
     $jobs = Database::fetchAll(
         "SELECT id, job_type, status, started_at, finished_at, details
          FROM mirror.jobs ORDER BY COALESCE(started_at, created_at) DESC, id DESC LIMIT 20"
@@ -602,8 +608,14 @@ function handleMirrorStatus() {
         'enabled' => filter_var($config['enabled'], FILTER_VALIDATE_BOOLEAN),
         'tool' => $config['tool'],
         'mirror_base_path' => $config['mirror_base_path'],
+        'path_locked' => filter_var($config['path_locked'], FILTER_VALIDATE_BOOLEAN)
+            || filter_var($config['enabled'], FILTER_VALIDATE_BOOLEAN)
+            || $hasJobs,
         'verify_gpg' => filter_var($config['verify_gpg'], FILTER_VALIDATE_BOOLEAN),
         'sync_interval_hours' => (int)$config['sync_interval_hours'],
+        'auto_cleanup_enabled' => filter_var($config['auto_cleanup_enabled'], FILTER_VALIDATE_BOOLEAN),
+        'retention_snapshots' => (int)$config['retention_snapshots'],
+        'quarantine_days' => (int)$config['quarantine_days'],
         'disk_total_gb' => round((float)disk_total_space($mirrorPath) / 1073741824, 2),
         'disk_free_gb' => round((float)disk_free_space($mirrorPath) / 1073741824, 2),
         'available_distros' => array_values($availableDistros),
@@ -738,30 +750,74 @@ function handleMirrorSyncNow() {
 }
 
 function handleMirrorSaveConfig($input) {
-    $enabled = array_key_exists('enabled', $input) ? mirrorInputBoolean($input, 'enabled') : false;
-    $verifyGpg = array_key_exists('verify_gpg', $input) ? mirrorInputBoolean($input, 'verify_gpg') : true;
+    $currentConfig = Database::fetchOne(
+        "SELECT enabled, tool, mirror_base_path, path_locked, verify_gpg, sync_interval_hours,
+                auto_cleanup_enabled, retention_snapshots, quarantine_days
+         FROM mirror.config ORDER BY id LIMIT 1"
+    ) ?: [];
+    $enabled = array_key_exists('enabled', $input)
+        ? mirrorInputBoolean($input, 'enabled')
+        : filter_var($currentConfig['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $verifyGpg = array_key_exists('verify_gpg', $input)
+        ? mirrorInputBoolean($input, 'verify_gpg')
+        : filter_var($currentConfig['verify_gpg'] ?? true, FILTER_VALIDATE_BOOLEAN);
+    $autoCleanup = array_key_exists('auto_cleanup_enabled', $input)
+        ? mirrorInputBoolean($input, 'auto_cleanup_enabled')
+        : filter_var($currentConfig['auto_cleanup_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN);
     $tool = sanitizeInput($input['tool'] ?? '');
-    $basePath = sanitizeInput($input['mirror_base_path'] ?? '');
-    $interval = filter_var($input['sync_interval_hours'] ?? null, FILTER_VALIDATE_INT);
+    if ($tool === '') $tool = $currentConfig['tool'] ?? 'aptly';
+    $basePath = array_key_exists('mirror_base_path', $input)
+        ? sanitizeInput($input['mirror_base_path'])
+        : ($currentConfig['mirror_base_path'] ?? '/var/lib/seederlinux/mirror');
+    $interval = filter_var(
+        $input['sync_interval_hours'] ?? ($currentConfig['sync_interval_hours'] ?? 24),
+        FILTER_VALIDATE_INT
+    );
+    $retentionSnapshots = filter_var(
+        $input['retention_snapshots'] ?? ($currentConfig['retention_snapshots'] ?? 2),
+        FILTER_VALIDATE_INT
+    );
+    $quarantineDays = filter_var(
+        $input['quarantine_days'] ?? ($currentConfig['quarantine_days'] ?? 7),
+        FILTER_VALIDATE_INT
+    );
 
-    if ($enabled === null || $verifyGpg === null) jsonError('Valores booleanos invalidos');
+    if ($enabled === null || $verifyGpg === null || $autoCleanup === null) jsonError('Valores booleanos invalidos');
     if (!in_array($tool, ['aptly', 'apt-mirror'], true)) jsonError('Ferramenta de mirror invalida');
     if ($basePath === '' || strlen($basePath) > 255) jsonError('Caminho base invalido');
     if ($interval === false || $interval < 1 || $interval > 8760) {
         jsonError('Intervalo deve estar entre 1 e 8760 horas');
     }
+    if ($retentionSnapshots === false || $retentionSnapshots < 0 || $retentionSnapshots > 100) jsonError('Retencao de snapshots invalida');
+    if ($quarantineDays === false || $quarantineDays < 0 || $quarantineDays > 3650) jsonError('Periodo de quarentena invalido');
+
+    $currentPath = $currentConfig['mirror_base_path'] ?? '/var/lib/seederlinux/mirror';
+    $pathLocked = filter_var($currentConfig['path_locked'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $hasJobs = (bool)Database::fetchOne('SELECT 1 FROM mirror.jobs LIMIT 1');
+    if (($pathLocked || filter_var($currentConfig['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN) || $hasJobs)
+        && $basePath !== $currentPath) {
+        jsonError('O caminho base do mirror esta bloqueado porque o mirror esta ativo ou ja possui jobs', 409);
+    }
+    $nextPathLocked = $pathLocked || $hasJobs || $enabled;
 
     Database::execute(
-        "INSERT INTO mirror.config (id, enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, NOW())
+        "INSERT INTO mirror.config (id, enabled, tool, mirror_base_path, path_locked, verify_gpg,
+                                    sync_interval_hours, auto_cleanup_enabled, retention_snapshots, quarantine_days, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
          ON CONFLICT (id) DO UPDATE SET
              enabled = EXCLUDED.enabled,
              tool = EXCLUDED.tool,
              mirror_base_path = EXCLUDED.mirror_base_path,
+             path_locked = EXCLUDED.path_locked,
              verify_gpg = EXCLUDED.verify_gpg,
              sync_interval_hours = EXCLUDED.sync_interval_hours,
+             auto_cleanup_enabled = EXCLUDED.auto_cleanup_enabled,
+             retention_snapshots = EXCLUDED.retention_snapshots,
+             quarantine_days = EXCLUDED.quarantine_days,
              updated_at = NOW()",
-        [mirrorDatabaseBoolean($enabled), $tool, $basePath, mirrorDatabaseBoolean($verifyGpg), $interval]
+        [mirrorDatabaseBoolean($enabled), $tool, $basePath, mirrorDatabaseBoolean($nextPathLocked),
+         mirrorDatabaseBoolean($verifyGpg), $interval, mirrorDatabaseBoolean($autoCleanup),
+         $retentionSnapshots, $quarantineDays]
     );
 
     log_audit('UPDATE', 'mirror_config', 1, [

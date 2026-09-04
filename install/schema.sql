@@ -455,20 +455,41 @@ CREATE TABLE IF NOT EXISTS mirror.config (
     enabled BOOLEAN DEFAULT FALSE,
     tool VARCHAR(20) DEFAULT 'aptly',
     mirror_base_path VARCHAR(255) NOT NULL DEFAULT '/var/lib/seederlinux/mirror',
+    path_locked BOOLEAN DEFAULT FALSE,
     verify_gpg BOOLEAN DEFAULT TRUE,
     sync_interval_hours INTEGER DEFAULT 24,
+    auto_cleanup_enabled BOOLEAN DEFAULT TRUE,
+    retention_snapshots INTEGER DEFAULT 2,
+    quarantine_days INTEGER DEFAULT 7,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS path_locked BOOLEAN DEFAULT FALSE;
+ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS auto_cleanup_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS retention_snapshots INTEGER DEFAULT 2;
+ALTER TABLE mirror.config ADD COLUMN IF NOT EXISTS quarantine_days INTEGER DEFAULT 7;
 
 CREATE TABLE IF NOT EXISTS mirror.distros (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     codename VARCHAR(50) NOT NULL,
-    base_distro_id INTEGER NULL,
+    base_distro_id INTEGER NULL REFERENCES mirror.distros(id) ON DELETE SET NULL,
     active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'mirror_distros_base_distro_id_fkey'
+          AND conrelid = 'mirror.distros'::regclass
+    ) THEN
+        ALTER TABLE mirror.distros ADD CONSTRAINT mirror_distros_base_distro_id_fkey
+            FOREIGN KEY (base_distro_id) REFERENCES mirror.distros(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS mirror.versions (
     id SERIAL PRIMARY KEY,
@@ -508,8 +529,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mirror_versions_distro_version
 CREATE UNIQUE INDEX IF NOT EXISTS idx_org_repository_settings_org
     ON mirror.organization_repository_settings(organization_id);
 
-INSERT INTO mirror.config (enabled, tool, mirror_base_path, verify_gpg, sync_interval_hours)
-SELECT FALSE, 'aptly', '/var/lib/seederlinux/mirror', TRUE, 24
+INSERT INTO mirror.config (id, enabled, tool, mirror_base_path, path_locked, verify_gpg,
+                           sync_interval_hours, auto_cleanup_enabled, retention_snapshots, quarantine_days)
+SELECT 1, FALSE, 'aptly', '/var/lib/seederlinux/mirror', FALSE, TRUE, 24, TRUE, 2, 7
 WHERE NOT EXISTS (SELECT 1 FROM mirror.config);
 
 INSERT INTO mirror.distros (name, codename) VALUES
