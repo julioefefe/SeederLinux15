@@ -914,7 +914,9 @@ function handleMirrorSaveOrgSettings($input) {
          WHERE ov.organization_id = ? AND vd.name = 'REPOSITORY_FALLBACK'",
         [$organizationId]
     );
-    $repositoryValues['REPOSITORY_FALLBACK'] = $fallback['value'] ?? 'http://deb.debian.org/debian';
+    $repositoryValues['REPOSITORY_FALLBACK'] = !empty(trim($fallback['value'] ?? ''))
+        ? $fallback['value']
+        : 'http://deb.debian.org/debian';
 
     Database::beginTransaction();
     try {
@@ -1281,6 +1283,7 @@ function handleUpdateVariables($input) {
         );
         $variableIds = array_map('intval', array_keys($variables));
         $changedVariables = [];
+        $definitions = [];
         if ($variableIds) {
             $placeholders = implode(',', array_fill(0, count($variableIds), '?'));
             $definitions = Database::fetchAll(
@@ -1290,7 +1293,23 @@ function handleUpdateVariables($input) {
             $changedVariables = array_column($definitions, 'name');
         }
 
+        $repositoryBooleanNames = [
+            'REPOSITORY_DEBIAN_ENABLED',
+            'REPOSITORY_UBUNTU_ENABLED',
+            'REPOSITORY_MINT_ENABLED',
+            'REPOSITORY_ZORIN_ENABLED',
+        ];
+        $definitionNamesById = [];
+        foreach ($definitions as $definition) {
+            $definitionNamesById[(int)$definition['id']] = $definition['name'];
+        }
+
         foreach ($variables as $varId => $value) {
+            if (in_array($definitionNamesById[(int)$varId] ?? '', $repositoryBooleanNames, true)) {
+                $normalized = mirrorInputBoolean(['value' => $value], 'value');
+                if ($normalized === null) jsonError('Valor booleano invalido para ' . $definitionNamesById[(int)$varId]);
+                $value = mirrorDatabaseBoolean($normalized);
+            }
             Database::execute(
                 "UPDATE organization_variables SET value = ?, updated_at = CURRENT_TIMESTAMP
                  WHERE organization_id = ? AND variable_id = ?",

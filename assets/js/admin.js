@@ -10,6 +10,7 @@ let allVariables = [];
 let activeCategory = 'identidade';
 let uploadedImages = { wallpapers: [], logos: [] };
 let scriptTab = 'Core';
+let mirrorOrgRepositoryState = null;
 
 const categoryLabels = {
     'dominio': 'Dominio', 'rede': 'Rede', 'proxy': 'Proxy', 'inventario': 'Inventario',
@@ -1168,6 +1169,18 @@ async function loadVariables(orgId) {
     }
 
     allVariables = res.data.variables || [];
+    mirrorOrgRepositoryState = null;
+    if (currentUser?.role === 'admin_gap') {
+        try {
+            const mirrorRes = await API.get('mirror-status');
+            if (mirrorRes.success) {
+                mirrorOrgRepositoryState = (mirrorRes.data.organization_settings || [])
+                    .find(org => Number(org.id) === Number(orgId)) || null;
+            }
+        } catch (error) {
+            mirrorOrgRepositoryState = null;
+        }
+    }
     activeCategory = 'identidade';
     renderVariables(allVariables);
 
@@ -1239,6 +1252,14 @@ function renderVariables(vars) {
         return;
     }
 
+    if (activeCategory === 'repositorios') {
+        html += renderRepositoryManagement(bucket, searchTerm);
+        html += '</div>';
+        el.innerHTML = html;
+        updateVariableSearchCount();
+        return;
+    }
+
     const sections = superCategorySections[activeCategory] || [];
     const sectionVarNames = new Set();
     sections.forEach(s => s.vars.forEach(n => sectionVarNames.add(n)));
@@ -1254,11 +1275,7 @@ function renderVariables(vars) {
         const sectionHidden = searchTerm && !sectionVars.some(v => matchesVariableSearch(v, searchTerm));
         html += `<div class="var-section-header" ${sectionHidden ? 'style="display:none;"' : ''}><h4 class="var-section-title">${Utils.escapeHtml(section.title)}</h4></div>`;
 
-        if (activeCategory === 'repositorios' && section.vars.includes('REPOSITORY_DEBIAN_URL')) {
-            html += renderRepositoryCards(sectionVars, searchTerm);
-        } else {
-            html += renderVarsWithGroups(sectionVars, searchTerm);
-        }
+        html += renderVarsWithGroups(sectionVars, searchTerm);
     });
 
     if (leftover.length) {
@@ -1279,6 +1296,88 @@ const repoDistros = [
     { name: 'Zorin OS', cls: 'zorin',    logo: '/assets/images/distros/zorin.svg',    enabledVar: 'REPOSITORY_ZORIN_ENABLED', urlVar: 'REPOSITORY_ZORIN_URL', placeholder: 'http://mirror.intraer/zorin' },
     { name: 'Padrao',   cls: 'default', logo: '/assets/images/distros/default.svg', enabledVar: null, urlVar: null, placeholder: '' }
 ];
+
+function isRepositoryManagedByGap() {
+    return mirrorOrgRepositoryState?.use_local_mirror === true
+        || mirrorOrgRepositoryState?.use_local_mirror === 't';
+}
+
+function normalizeBooleanValue(value) {
+    return value === true || value === 1 || value === '1' || String(value).toLowerCase() === 'true';
+}
+
+function renderRepositoryManagement(vars, searchTerm = '') {
+    const varMap = {};
+    vars.forEach(v => { varMap[v.name] = v; });
+    const modeVar = varMap.REPOSITORY_MODE;
+    const fallbackVar = varMap.REPOSITORY_FALLBACK;
+    const mode = String(modeVar?.current_value || 'PUBLIC').toUpperCase();
+    const managed = isRepositoryManagedByGap();
+    const modeDescriptions = {
+        PUBLIC: 'Usa os repositórios oficiais da internet.',
+        MIRROR: managed ? 'URLs derivadas do mirror do GAP e gerenciadas automaticamente.' : 'Permite informar URLs locais manualmente.',
+        HYBRID: 'Usa URLs locais quando disponíveis e fallback para a internet.',
+        CUSTOM: 'Permite configurar cada distribuição manualmente.'
+    };
+    let html = `<div class="repository-management col-span-2">`;
+    if (managed) {
+        html += `<div class="repository-gap-banner"><strong>Repositório gerenciado pelo GAP</strong><span>Esta OM está usando o mirror do GAP. As URLs abaixo são derivadas automaticamente.</span></div>`;
+    }
+    if (modeVar) {
+        const modeInput = renderTypedInput(modeVar).replace('<select ', '<select onchange="updateRepositoryModeView(this.value)" ');
+        html += `<div class="repository-mode-panel"><div><label class="form-label" title="PUBLIC usa fontes oficiais; MIRROR usa o mirror local; HYBRID combina mirror e fallback; CUSTOM permite URLs próprias.">Modo do repositório</label><p class="repository-mode-help">${modeDescriptions[mode] || 'Escolha como esta OM obterá os pacotes.'}</p></div><div class="repository-mode-control">${modeInput}<span class="repository-mode-hint">PUBLIC: oficiais | MIRROR: local | HYBRID: local + fallback | CUSTOM: manual</span></div></div>`;
+    }
+    if (mode === 'PUBLIC') {
+        if (fallbackVar) html += renderRepositoryInformativeField(fallbackVar, 'Fallback configurado');
+        html += '<div class="repository-public-note">Esta OM está configurada para usar os repositórios oficiais. URLs específicas ficam ocultas.</div></div>';
+        return html;
+    }
+    if (managed) {
+        html += '<div class="repository-managed-note">O GAP controla estas URLs para manter todas as OMs alinhadas ao mirror local.</div>';
+    }
+    html += '<div class="repository-card-grid">';
+    repoDistros.forEach(distro => {
+        const enVar = varMap[distro.enabledVar];
+        const urlVar = varMap[distro.urlVar];
+        if (!enVar && !urlVar) return;
+        const enabled = normalizeBooleanValue(enVar?.current_value);
+        const readonly = managed && ['MIRROR', 'HYBRID'].includes(mode);
+        html += `<div class="repo-card ${distro.cls} ${readonly ? 'repository-managed-card' : ''}">
+            <div class="repo-card-header"><img src="${distro.logo}" alt="${distro.name}" onerror="if(this.parentElement)this.style.display='none'"><h4>${distro.name}</h4></div>`;
+        if (enVar && !readonly) {
+            html += `<div class="flex items-center justify-between mb-2"><span class="text-xs text-slate-400">Habilitar repositório</span><label class="toggle-switch"><input type="checkbox" data-var-id="${enVar.id}" data-repository-boolean="1" ${enabled ? 'checked' : ''} onchange="toggleRepoUrl(this, '${distro.urlVar}')"><span class="toggle-slider"></span></label></div>`;
+        }
+        if (urlVar) {
+            const urlValue = Utils.escapeHtml(urlVar.current_value || '');
+            html += `<div class="repo-url-wrap"><label class="text-xs text-slate-400">URL ${distro.name}</label><input type="url" data-var-id="${urlVar.id}" data-repository-url="1" class="var-input" value="${urlValue}" placeholder="${distro.placeholder}" ${readonly ? 'readonly' : ''}><p class="text-slate-500 text-xs mt-1 font-mono">${urlVar.name}${readonly ? ' · gerenciada pelo GAP' : ''}</p></div>`;
+        }
+        html += '</div>';
+    });
+    html += '</div>';
+    if (fallbackVar && mode === 'HYBRID') {
+        html += renderRepositoryField(fallbackVar, false, 'Fallback para a internet');
+    } else if (fallbackVar && mode === 'MIRROR' && managed) {
+        html += renderRepositoryInformativeField(fallbackVar, 'Fallback preservado');
+    } else if (fallbackVar) {
+        html += renderRepositoryField(fallbackVar, false, 'Fallback global');
+    }
+    return html + '</div>';
+}
+
+function updateRepositoryModeView(value) {
+    const modeVar = allVariables.find(variable => variable.name === 'REPOSITORY_MODE');
+    if (!modeVar) return;
+    modeVar.current_value = String(value || 'PUBLIC').toUpperCase();
+    renderVariables(allVariables);
+}
+
+function renderRepositoryInformativeField(variable, label) {
+    return `<div class="repository-informative-field"><label class="form-label">${label}</label><code>${Utils.escapeHtml(variable.current_value || '-')}</code><span class="mirror-help">Informativo neste modo.</span></div>`;
+}
+
+function renderRepositoryField(variable, readonly, label) {
+    return `<div class="repository-fallback-field"><label class="form-label">${label}</label><input type="url" data-var-id="${variable.id}" class="var-input" value="${Utils.escapeHtml(variable.current_value || '')}" placeholder="http://deb.debian.org/debian" ${readonly ? 'readonly' : ''}><p class="text-slate-500 text-xs mt-1 font-mono">${variable.name}</p></div>`;
+}
 
 function renderRepositoryCards(vars, searchTerm = '') {
     const varMap = {};
