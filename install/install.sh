@@ -211,6 +211,8 @@ setup_project_files() {
     print_step "Criando diretórios de armazenamento..."
     mkdir -p "${INSTALL_DIR}/storage/logs"
     mkdir -p "${INSTALL_DIR}/downloads"
+    print_step "Criando diretórios do Mirror..."
+    mkdir -p /var/lib/seederlinux/mirror/{tmp,log,cache,public,quarantine}
 
     print_step "Criando arquivo .env..."
     cat > "${INSTALL_DIR}/.env" <<EOF
@@ -242,9 +244,12 @@ setup_permissions() {
     # Scripts executáveis
     chmod +x "${INSTALL_DIR}/downloads/"*.py 2>/dev/null || true
     chmod +x "${INSTALL_DIR}/scripts/"*.sh 2>/dev/null || true
+    chmod +x "${INSTALL_DIR}/scripts/mirror-sync.sh" 2>/dev/null || true
 
     # Storage com permissão de escrita
     chmod -R 775 "${INSTALL_DIR}/storage"
+    chown -R ${APACHE_USER}:${APACHE_GROUP} /var/lib/seederlinux/mirror
+    chmod -R 775 /var/lib/seederlinux/mirror
     
     # Arquivo .env protegido
     chmod 600 "${INSTALL_DIR}/.env"

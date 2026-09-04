@@ -121,6 +121,10 @@ try {
             requireMirrorAdmin($method, 'POST', $input);
             handleMirrorSyncNow();
             break;
+        case 'mirror-job-status':
+            requireMirrorAdmin($method, 'GET', [], false);
+            handleMirrorJobStatus($_GET);
+            break;
 
         // Organizations
 
@@ -627,13 +631,13 @@ function handleMirrorStatus() {
     ]);
 }
 
-function requireMirrorAdmin($method, $expectedMethod = 'POST', $input = []) {
+function requireMirrorAdmin($method, $expectedMethod = 'POST', $input = [], $validateCsrf = true) {
     requireAuth();
     if (($_SESSION['role'] ?? null) !== 'admin_gap') {
         jsonError('Acesso restrito ao administrador GAP', 403);
     }
     if ($method !== $expectedMethod) jsonError('Method not allowed', 405);
-    requireCsrfToken($input);
+    if ($validateCsrf) requireCsrfToken($input);
 }
 
 function mirrorCatalogStatus($status) {
@@ -747,7 +751,30 @@ function handleMirrorDeleteVersion($input) {
 function handleMirrorSyncNow() {
     Database::execute("INSERT INTO mirror.jobs (job_type, status, started_at) VALUES ('sync', 'pending', NOW())");
     $jobId = (int)Database::lastInsertId();
-    jsonSuccess(['job_id' => $jobId, 'status' => 'pending'], 'Sincronizacao enfileirada; a execucao sera implementada posteriormente');
+    $worker = realpath(__DIR__ . '/../scripts/mirror-sync.sh');
+    $launchStatus = 'queued';
+    if ($worker && is_executable($worker) && function_exists('exec')) {
+        $command = sprintf(
+            'nohup %s %d >/dev/null 2>&1 &',
+            escapeshellarg($worker),
+            $jobId
+        );
+        exec($command);
+        $launchStatus = 'started';
+    }
+    jsonSuccess(['job_id' => $jobId, 'status' => 'pending', 'worker' => $launchStatus], 'Sincronizacao enfileirada');
+}
+
+function handleMirrorJobStatus($input) {
+    $jobId = mirrorInputId($input, ['job_id', 'id']);
+    if ($jobId === false || $jobId < 1) jsonError('Job invalido');
+    $job = Database::fetchOne(
+        "SELECT id, job_type, status, details, gpg_verified, started_at, finished_at, created_at
+         FROM mirror.jobs WHERE id = ?",
+        [$jobId]
+    );
+    if (!$job) jsonError('Job nao encontrado', 404);
+    jsonSuccess($job);
 }
 
 function handleMirrorSaveConfig($input) {
