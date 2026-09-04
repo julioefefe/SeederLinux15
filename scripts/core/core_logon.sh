@@ -70,12 +70,20 @@ Cmnd_Alias SEEDERLINUX_SYNC = /usr/local/bin/seeder-sync
 ALL ALL=(root) NOPASSWD: SEEDERLINUX_MOUNT, SEEDERLINUX_UMOUNT, SEEDERLINUX_SYNC
 EOF
 chmod 440 "$SUDOERS_FILE"
+# CORRECAO: antes, sudoers invalido dava `exit 1` aqui - como este
+# script roda no nivel raiz do bundle (sem subshell), isso abortava
+# TUDO que vem depois (troca de senha, proxy, agente, sync), nao so
+# a montagem de compartilhamentos. Agora so desativa o mount via
+# sudo para esta estacao (com aviso claro) e o resto do bundle
+# continua normalmente.
 if ! visudo -cf "$SUDOERS_FILE"; then
     echo ">>> ERRO: sintaxe invalida no sudoers gerado. Removendo."
+    echo ">>> AVISO: montagem de compartilhamentos via sudo ficara indisponivel nesta estacao."
+    echo ">>> O restante do bundle continua normalmente."
     rm -f "$SUDOERS_FILE"
-    exit 1
+else
+    echo ">>> sudoers configurado: $SUDOERS_FILE"
 fi
-echo ">>> sudoers configurado: $SUDOERS_FILE"
 
 # ============================================================
 # 2. Preparar diretorio de log (mundo-gravavel com sticky bit, ja
