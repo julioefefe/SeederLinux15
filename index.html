@@ -16,6 +16,8 @@
                 var result = await response.json();
                 if (result.success && result.data && result.data.theme === 'modern') {
                     window.location.replace('/public/index.php');
+                } else if (result.success && result.data && result.data.theme === 'solar') {
+                    window.location.replace('/public/solar.php');
                 }
             } catch (error) {
             }
@@ -43,7 +45,7 @@
 
     <main>
         <section class="public-hero page-section">
-            <div class="hero-copy"><p class="eyebrow"><span class="status-dot"></span> Plataforma local de provisionamento</p><h1>SeederLinux <em>Lite</em></h1><p class="hero-lead">Padronize e gerencie estacoes Linux com bundles autonomos, configuracoes por OM e rastreabilidade administrativa.</p><div class="hero-actions"><a class="button button-primary" href="#bundles">Ver bundles disponiveis <span aria-hidden="true">&#8594;</span></a><a class="button button-quiet" href="login.html">Acessar area restrita</a></div><div class="hero-facts" aria-label="Resumo do sistema"><span><strong>22</strong> scripts Core</span><span><strong>3</strong> camadas de versao</span><span><strong>100%</strong> local</span></div></div>
+            <div class="hero-copy"><p class="eyebrow"><span class="status-dot"></span> Plataforma local de provisionamento</p><h1>SeederLinux <em>Lite</em></h1><p class="hero-lead">Prepare qualquer estacao Linux para o trabalho em minutos: configuracao completa, identidade da organizacao e tudo auditado — com um unico comando.</p><div class="hero-actions"><a class="button button-primary" href="#bundles">Ver bundles disponiveis <span aria-hidden="true">&#8594;</span></a><a class="button button-quiet" href="login.html">Acessar area restrita</a></div><div class="hero-facts" aria-label="Resumo do sistema"><span><strong>22</strong> scripts Core</span><span><strong>3</strong> camadas de versao</span><span><strong>100%</strong> local</span></div></div>
             <div class="hero-console" aria-label="Exemplo de execucao de bundle"><div class="console-bar"><span></span><span></span><span></span><small>bundle.sh</small></div><pre><code><i># bundle autonomo SeederLinux Lite</i>
 <b>$</b> sudo bash bundle.sh
 

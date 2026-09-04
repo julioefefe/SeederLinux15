@@ -4,8 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - SeederLinux Lite</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        (function () {
+            try {
+                fetch('/api/?action=public-theme', { cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res && res.success && res.data && res.data.theme && res.data.theme !== 'classic') {
+                            document.documentElement.setAttribute('data-app-theme', res.data.theme);
+                        }
+                    })
+                    .catch(function () {});
+            } catch (e) {}
+        })();
+    </script>
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/app-themes.css">
 </head>
 <body>
     <div class="flex min-h-screen">
@@ -141,8 +156,8 @@
                     <div id="public-theme-settings" class="card mb-6 hidden">
                         <div class="card-header">
                             <div>
-                                <h3 class="card-title">Tela pública</h3>
-                                <p class="page-subtitle">Escolha a apresentação exibida em <code>/</code>.</p>
+                                <h3 class="card-title">Tema do sistema</h3>
+                                <p class="page-subtitle">Escolha a apresentação do site público e do painel.</p>
                             </div>
                             <span id="public-theme-status" class="badge badge-info">Carregando...</span>
                         </div>
@@ -152,6 +167,7 @@
                                 <select id="public-theme-select" class="form-select" aria-describedby="public-theme-help">
                                     <option value="classic">Clássico</option>
                                     <option value="modern">Moderno</option>
+                                    <option value="solar">Solar (laranja)</option>
                                 </select>
                                 <button id="btn-save-public-theme" type="button" class="btn btn-primary btn-sm">Salvar tema</button>
                             </div>

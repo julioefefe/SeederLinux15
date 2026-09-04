@@ -857,8 +857,9 @@ async function loadPublicTheme() {
     try {
         const res = await API.get('public-theme');
         if (!res.success) throw new Error(res.error || 'Falha ao carregar o tema');
-        select.value = res.data?.theme === 'modern' ? 'modern' : 'classic';
-        if (status) status.textContent = select.value === 'modern' ? 'Moderno publicado' : 'Clássico publicado';
+        const publishedTheme = res.data?.theme || 'classic';
+        select.value = publishedTheme;
+        if (status) status.textContent = ({ classic: 'Clássico publicado', modern: 'Moderno publicado', solar: 'Solar publicado' })[publishedTheme] || 'Clássico publicado';
     } catch (error) {
         if (status) status.textContent = 'Indisponível';
         Toast.error('Não foi possível carregar o tema público.');
@@ -875,7 +876,7 @@ async function savePublicTheme() {
     try {
         const res = await API.post('set-public-theme', { theme: select.value });
         if (!res.success) throw new Error(res.error || 'Falha ao salvar o tema');
-        if (status) status.textContent = select.value === 'modern' ? 'Moderno publicado' : 'Clássico publicado';
+        if (status) status.textContent = ({ classic: 'Clássico publicado', modern: 'Moderno publicado', solar: 'Solar publicado' })[select.value] || 'Clássico publicado';
         Toast.success('Tema da página pública atualizado.');
     } catch (error) {
         Toast.error(error.message || 'Não foi possível salvar o tema público.');
