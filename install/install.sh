@@ -288,6 +288,21 @@ configure_apache() {
             Require all denied
         </Directory>
 
+        # Mirror: servir arquivos estáticos via Apache (sem PHP)
+        Alias /mirror /var/lib/seederlinux/mirror/public
+        <Directory /var/lib/seederlinux/mirror/public>
+            Options +Indexes +FollowSymLinks
+            AllowOverride None
+            Require all granted
+        </Directory>
+
+        <IfModule mod_headers.c>
+            Header always set X-Content-Type-Options nosniff
+            <FilesMatch "\.deb$">
+                Header set Cache-Control "public, max-age=604800, immutable"
+            </FilesMatch>
+        </IfModule>
+
         SSLEngine on
         SSLCertificateFile /etc/ssl/certs/ssl-cert-snakeoil.pem
         SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
