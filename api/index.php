@@ -636,6 +636,17 @@ function mirrorInputId($input, $keys) {
     return false;
 }
 
+function mirrorInputBoolean($input, $key) {
+    if (!array_key_exists($key, $input) || $input[$key] === '' || $input[$key] === null) {
+        return null;
+    }
+    return filter_var($input[$key], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+}
+
+function mirrorDatabaseBoolean($value) {
+    return $value ? 'true' : 'false';
+}
+
 function handleMirrorAddDistro($input) {
     $name = sanitizeInput($input['name'] ?? '');
     $codename = sanitizeInput($input['codename'] ?? '');
@@ -668,8 +679,11 @@ function handleMirrorToggleDistro($input) {
     if ($id === false || $id < 1) jsonError('Distro invalida');
     $distro = Database::fetchOne('SELECT active FROM mirror.distros WHERE id = ?', [$id]);
     if (!$distro) jsonError('Distro nao encontrada', 404);
-    $active = !filter_var($distro['active'], FILTER_VALIDATE_BOOLEAN);
-    Database::execute('UPDATE mirror.distros SET active = ? WHERE id = ?', [$active, $id]);
+    $active = mirrorInputBoolean($input, 'active');
+    if ($active === null) {
+        $active = !filter_var($distro['active'], FILTER_VALIDATE_BOOLEAN);
+    }
+    Database::execute('UPDATE mirror.distros SET active = ? WHERE id = ?', [mirrorDatabaseBoolean($active), $id]);
     jsonSuccess(['active' => $active], $active ? 'Distro ativada' : 'Distro desativada');
 }
 
@@ -702,8 +716,11 @@ function handleMirrorToggleVersion($input) {
     if ($id === false || $id < 1) jsonError('Versao invalida');
     $version = Database::fetchOne('SELECT active FROM mirror.versions WHERE id = ?', [$id]);
     if (!$version) jsonError('Versao nao encontrada', 404);
-    $active = !filter_var($version['active'], FILTER_VALIDATE_BOOLEAN);
-    Database::execute('UPDATE mirror.versions SET active = ? WHERE id = ?', [$active, $id]);
+    $active = mirrorInputBoolean($input, 'active');
+    if ($active === null) {
+        $active = !filter_var($version['active'], FILTER_VALIDATE_BOOLEAN);
+    }
+    Database::execute('UPDATE mirror.versions SET active = ? WHERE id = ?', [mirrorDatabaseBoolean($active), $id]);
     jsonSuccess(['active' => $active], $active ? 'Versao ativada' : 'Versao desativada');
 }
 
@@ -721,8 +738,8 @@ function handleMirrorSyncNow() {
 }
 
 function handleMirrorSaveConfig($input) {
-    $enabled = filter_var($input['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-    $verifyGpg = filter_var($input['verify_gpg'] ?? true, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $enabled = array_key_exists('enabled', $input) ? mirrorInputBoolean($input, 'enabled') : false;
+    $verifyGpg = array_key_exists('verify_gpg', $input) ? mirrorInputBoolean($input, 'verify_gpg') : true;
     $tool = sanitizeInput($input['tool'] ?? '');
     $basePath = sanitizeInput($input['mirror_base_path'] ?? '');
     $interval = filter_var($input['sync_interval_hours'] ?? null, FILTER_VALIDATE_INT);
@@ -744,7 +761,7 @@ function handleMirrorSaveConfig($input) {
              verify_gpg = EXCLUDED.verify_gpg,
              sync_interval_hours = EXCLUDED.sync_interval_hours,
              updated_at = NOW()",
-        [$enabled, $tool, $basePath, $verifyGpg, $interval]
+        [mirrorDatabaseBoolean($enabled), $tool, $basePath, mirrorDatabaseBoolean($verifyGpg), $interval]
     );
 
     log_audit('UPDATE', 'mirror_config', 1, [
@@ -759,7 +776,7 @@ function handleMirrorSaveConfig($input) {
 
 function handleMirrorSaveOrgSettings($input) {
     $organizationId = filter_var($input['organization_id'] ?? null, FILTER_VALIDATE_INT);
-    $useLocalMirror = filter_var($input['use_local_mirror'] ?? false, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    $useLocalMirror = array_key_exists('use_local_mirror', $input) ? mirrorInputBoolean($input, 'use_local_mirror') : false;
     $priority = filter_var($input['mirror_priority'] ?? 100, FILTER_VALIDATE_INT);
 
     if ($organizationId === false || $organizationId < 1) jsonError('Organizacao invalida');
@@ -777,7 +794,7 @@ function handleMirrorSaveOrgSettings($input) {
              use_local_mirror = EXCLUDED.use_local_mirror,
              mirror_priority = EXCLUDED.mirror_priority,
              updated_at = NOW()",
-        [$organizationId, $useLocalMirror, $priority]
+        [$organizationId, mirrorDatabaseBoolean($useLocalMirror), $priority]
     );
 
     // Futuramente, ativar uma OM deverá definir REPOSITORY_MODE=MIRROR e preencher

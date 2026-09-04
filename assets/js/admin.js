@@ -515,7 +515,8 @@ async function editMirrorDistro(id) {
 
 async function toggleMirrorDistro(id) {
     if (!confirm('Alternar o estado desta distro? Suas versões ficarão ocultas quando a distro estiver inativa.')) return;
-    try { const res = await API.post('mirror-toggle-distro', { distro_id: id }); if (!res.success) throw new Error(res.error); Toast.success(res.message || 'Estado da distro atualizado.'); await loadMirror(); } catch (error) { Toast.error(error.message || 'Não foi possível alterar a distro.'); }
+    const distro = mirrorCatalog.find(item => Number(item.id) === Number(id));
+    try { const res = await API.post('mirror-toggle-distro', { distro_id: id, active: !mirrorIsActive(distro?.active) }); if (!res.success) throw new Error(res.error); Toast.success(res.message || 'Estado da distro atualizado.'); await loadMirror(); } catch (error) { Toast.error(error.message || 'Não foi possível alterar a distro.'); }
 }
 
 async function addMirrorVersion(distroId) {
@@ -554,7 +555,8 @@ async function saveMirrorCatalogForm() {
 
 async function toggleMirrorVersion(id) {
     if (!confirm('Alternar o estado desta versão?')) return;
-    try { const res = await API.post('mirror-toggle-version', { version_id: id }); if (!res.success) throw new Error(res.error); Toast.success(res.message || 'Estado da versão atualizado.'); await loadMirror(); } catch (error) { Toast.error(error.message || 'Não foi possível alterar a versão.'); }
+    const version = findMirrorVersion(id);
+    try { const res = await API.post('mirror-toggle-version', { version_id: id, active: !mirrorIsActive(version?.active) }); if (!res.success) throw new Error(res.error); Toast.success(res.message || 'Estado da versão atualizado.'); await loadMirror(); } catch (error) { Toast.error(error.message || 'Não foi possível alterar a versão.'); }
 }
 
 async function deleteMirrorVersion(id) {
