@@ -202,9 +202,12 @@
                                 <div class="mirror-form-grid">
                                     <div class="mirror-setting-row"><div><label for="mirror-enabled" class="form-label">Ativar Mirror</label><span class="mirror-help">Disponível para as OMs habilitadas</span></div><label class="toggle-switch"><input id="mirror-enabled" type="checkbox"><span class="toggle-slider"></span></label></div>
                                     <div class="form-group"><label for="mirror-tool" class="form-label">Ferramenta</label><select id="mirror-tool" class="form-select"><option value="aptly">aptly</option><option value="apt-mirror">apt-mirror</option></select></div>
-                                    <div class="form-group"><label for="mirror-base-path" class="form-label">Caminho base</label><input id="mirror-base-path" class="form-input" type="text" maxlength="255"></div>
+                                    <div class="form-group mirror-path-setting"><div class="mirror-path-heading"><label class="form-label" for="mirror-base-path-display">Caminho base do mirror</label><span id="mirror-path-lock" class="badge badge-secondary">Verificando</span></div><div class="mirror-path-value"><code id="mirror-base-path-display">-</code><button id="btn-edit-mirror-path" type="button" class="btn btn-secondary btn-sm">Alterar caminho</button></div><span id="mirror-path-help" class="mirror-help">O caminho físico é compartilhado pelo serviço de mirror e pelo Apache.</span></div>
                                     <div class="mirror-setting-row"><div><label for="mirror-verify-gpg" class="form-label">Verificar GPG</label><span class="mirror-help">Valida assinaturas dos repositórios</span></div><input id="mirror-verify-gpg" type="checkbox" class="mirror-checkbox"></div>
                                     <div class="form-group"><label for="mirror-interval" class="form-label">Intervalo de sincronização (horas)</label><input id="mirror-interval" class="form-input" type="number" min="1" max="8760" step="1"></div>
+                                    <div class="mirror-setting-row"><div><label for="mirror-auto-cleanup" class="form-label">Limpeza automática</label><span class="mirror-help">Remove artefatos antigos conforme a retenção</span></div><label class="toggle-switch"><input id="mirror-auto-cleanup" type="checkbox"><span class="toggle-slider"></span></label></div>
+                                    <div class="form-group"><label for="mirror-retention" class="form-label">Snapshots a manter</label><input id="mirror-retention" class="form-input" type="number" min="0" max="100" step="1"></div>
+                                    <div class="form-group"><label for="mirror-quarantine" class="form-label">Dias de quarentena</label><input id="mirror-quarantine" class="form-input" type="number" min="0" max="3650" step="1"></div>
                                 </div>
                                 <div class="mirror-actions"><button id="btn-save-mirror-config" type="button" class="btn btn-primary">Salvar configuração</button></div>
                             </div>
@@ -223,7 +226,7 @@
                         <div class="card"><div class="card-header"><div><h3 class="card-title">Catálogo de distros e versões</h3><p class="page-subtitle">Selecione o que deverá ser espelhado</p></div><button id="btn-add-mirror-distro" type="button" class="btn btn-primary btn-sm">Adicionar distro</button></div><div class="mirror-catalog-tabs"><button type="button" class="btn btn-sm btn-primary" data-mirror-catalog-tab="active">Ativas</button><button type="button" class="btn btn-sm btn-secondary" data-mirror-catalog-tab="inactive">Inativas</button></div><div id="mirror-distros-list" class="card-body mirror-distros-list"></div></div>
                         <div class="card"><div class="card-header"><h3 class="card-title">Arquiteturas e componentes</h3></div><div class="card-body"><h4 class="mirror-section-label">Arquiteturas</h4><div id="mirror-architectures" class="mirror-chip-group"></div><h4 class="mirror-section-label">Componentes</h4><div id="mirror-components" class="mirror-chip-group"></div></div></div>
                     </div>
-                    <div class="card mirror-org-card"><div class="card-header"><div><h3 class="card-title">Organizações (OMs)</h3><p class="page-subtitle">Defina quais OMs usarão o mirror local</p></div><span id="mirror-org-usage" class="badge badge-info">0 OMs</span></div><div class="card-body table-wrapper"><table><thead><tr><th>OM</th><th>Usar mirror local</th><th>Prioridade</th><th class="text-right">Ação</th></tr></thead><tbody id="mirror-orgs-tbody"></tbody></table></div></div>
+                    <div class="card mirror-org-card"><div class="card-header"><div><h3 class="card-title">Organizações (OMs)</h3><p class="page-subtitle">Defina quais OMs usarão o mirror local</p><span class="mirror-help">A integração automática com REPOSITORY_MODE e REPOSITORY_*_URL será implementada futuramente.</span></div><span id="mirror-org-usage" class="badge badge-info">0 OMs</span></div><div class="card-body table-wrapper"><table><thead><tr><th>OM</th><th>Usar mirror local</th><th>Prioridade</th><th class="text-right">Ação</th></tr></thead><tbody id="mirror-orgs-tbody"></tbody></table></div></div>
                     <div class="card mirror-org-card"><div class="card-header"><div><h3 class="card-title">Histórico de jobs</h3><p class="page-subtitle">Últimas solicitações de sincronização</p></div></div><div class="card-body table-wrapper"><table><thead><tr><th>Tipo</th><th>Status</th><th>Início</th><th>Detalhes</th></tr></thead><tbody id="mirror-jobs-tbody"></tbody></table></div></div>
                 </div>
 
@@ -236,6 +239,15 @@
                             <div id="mirror-version-fields" class="hidden"><div class="form-group"><label class="form-label" for="mirror-catalog-version">Versão/codename</label><input id="mirror-catalog-version" class="form-input" type="text" maxlength="50"></div><div class="form-group"><label class="form-label" for="mirror-catalog-status">Status</label><select id="mirror-catalog-status" class="form-select"><option value="old">old</option><option value="current">current</option><option value="future">future</option></select></div></div>
                         </div>
                         <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-mirror-catalog')">Cancelar</button><button id="btn-save-mirror-catalog" type="button" class="btn btn-primary">Salvar</button></div>
+                    </div>
+                </div>
+
+                <div id="modal-mirror-path" class="modal hidden">
+                    <div class="modal-backdrop" onclick="closeModal('modal-mirror-path')"></div>
+                    <div class="modal-dialog">
+                        <div class="modal-header"><h3 class="modal-title">Definir caminho do mirror</h3><button class="modal-close" type="button" onclick="closeModal('modal-mirror-path')">&times;</button></div>
+                        <div class="modal-body"><div class="form-group"><label for="mirror-path-input" class="form-label">Caminho absoluto</label><input id="mirror-path-input" class="form-input" type="text" maxlength="255" placeholder="/var/lib/seederlinux/mirror"><span class="mirror-help">Defina este caminho apenas antes de ativar o mirror ou criar jobs.</span></div></div>
+                        <div class="modal-footer"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-mirror-path')">Cancelar</button><button id="btn-confirm-mirror-path" type="button" class="btn btn-primary">Aplicar caminho</button></div>
                     </div>
                 </div>
 

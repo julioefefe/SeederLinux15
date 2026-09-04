@@ -2054,6 +2054,10 @@ textarea[style*="background:#0a0f1a"] {
 .mirror-setting-row .form-label { margin-bottom: .15rem; }
 .mirror-help { display: block; color: var(--text-dim); font-size: .75rem; line-height: 1.4; margin: 0; }
 .mirror-actions { display: flex; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 1rem; }
+.mirror-path-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.mirror-path-value { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-height: 3rem; padding: .65rem .75rem; background: var(--bg-darker); border: 1px solid var(--border); border-radius: .5rem; }
+.mirror-path-value code { color: var(--text); font-size: .8rem; overflow-wrap: anywhere; }
+.mirror-path-value .btn { flex-shrink: 0; }
 .mirror-checkbox { width: 1.1rem; height: 1.1rem; accent-color: var(--primary); }
 .mirror-capacity-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-bottom: 1rem; }
 .mirror-capacity-grid > div { border: 1px solid var(--border); border-radius: .5rem; padding: .75rem; background: var(--bg-darker); }

@@ -431,6 +431,7 @@ const mirrorComponents = ['main', 'contrib', 'non-free', 'restricted', 'universe
 let mirrorCatalogTab = 'active';
 let mirrorCatalog = [];
 let mirrorCatalogForm = { type: null, id: null, distroId: null };
+let mirrorBasePath = '';
 
 function mirrorIsActive(value) {
     return value === true || value === 't' || value === '1' || value === 1;
@@ -576,7 +577,7 @@ function renderMirrorOrganizations(settings) {
     body.innerHTML = settings.length ? settings.map(org => `
         <tr>
             <td><strong>${Utils.escapeHtml(org.acronym)}</strong><span class="mirror-org-name">${Utils.escapeHtml(org.name)}</span></td>
-            <td><label class="toggle-switch"><input type="checkbox" data-mirror-org-enabled="${org.id}" ${org.use_local_mirror === true || org.use_local_mirror === 't' ? 'checked' : ''}><span class="toggle-slider"></span></label></td>
+            <td><label class="toggle-switch"><input type="checkbox" data-mirror-org-enabled="${org.id}" onchange="saveMirrorOrgSetting(${org.id})" ${org.use_local_mirror === true || org.use_local_mirror === 't' ? 'checked' : ''}><span class="toggle-slider"></span></label></td>
             <td><input class="form-input mirror-priority" type="number" min="0" max="10000" value="${org.mirror_priority !== null && org.mirror_priority !== undefined ? Number(org.mirror_priority) : 100}" data-mirror-org-priority="${org.id}"></td>
             <td class="text-right"><button type="button" class="btn btn-secondary btn-sm" onclick="saveMirrorOrgSetting(${org.id})">Salvar</button></td>
         </tr>
@@ -590,11 +591,27 @@ async function loadMirror() {
         const res = await API.get('mirror-status');
         if (!res.success) throw new Error(res.error || 'Falha ao carregar o Mirror');
         const data = res.data || {};
+        mirrorBasePath = data.mirror_base_path || '';
         document.getElementById('mirror-enabled').checked = Boolean(data.enabled);
         document.getElementById('mirror-tool').value = data.tool || 'aptly';
-        document.getElementById('mirror-base-path').value = data.mirror_base_path || '';
+        document.getElementById('mirror-base-path-display').textContent = mirrorBasePath || '-';
         document.getElementById('mirror-verify-gpg').checked = Boolean(data.verify_gpg);
         document.getElementById('mirror-interval').value = data.sync_interval_hours || 24;
+        document.getElementById('mirror-auto-cleanup').checked = Boolean(data.auto_cleanup_enabled);
+        document.getElementById('mirror-retention').value = data.retention_snapshots ?? 2;
+        document.getElementById('mirror-quarantine').value = data.quarantine_days ?? 7;
+        const pathLocked = Boolean(data.path_locked);
+        const pathLock = document.getElementById('mirror-path-lock');
+        const pathButton = document.getElementById('btn-edit-mirror-path');
+        const pathHelp = document.getElementById('mirror-path-help');
+        if (pathLock) {
+            pathLock.textContent = pathLocked ? 'Bloqueado' : 'Configuração inicial';
+            pathLock.className = `badge ${pathLocked ? 'badge-warning' : 'badge-info'}`;
+        }
+        if (pathButton) pathButton.classList.toggle('hidden', pathLocked);
+        if (pathHelp) pathHelp.textContent = pathLocked
+            ? 'Bloqueado após ativação ou criação de jobs; compartilhado pelo mirror e pelo Apache.'
+            : 'Pode ser definido apenas antes de ativar o mirror ou criar jobs.';
         document.getElementById('mirror-free-space').textContent = Number(data.disk_free_gb || 0).toFixed(2);
         document.getElementById('mirror-total-space').textContent = Number(data.disk_total_gb || 0).toFixed(2);
         document.getElementById('mirror-org-usage').textContent = `${data.organization_usage || 0} OM(s) ativas`;
@@ -650,17 +667,40 @@ async function saveMirrorConfig() {
         const res = await API.post('mirror-save-config', {
             enabled: document.getElementById('mirror-enabled').checked,
             tool: document.getElementById('mirror-tool').value,
-            mirror_base_path: document.getElementById('mirror-base-path').value.trim(),
+            mirror_base_path: mirrorBasePath,
             verify_gpg: document.getElementById('mirror-verify-gpg').checked,
-            sync_interval_hours: Number(document.getElementById('mirror-interval').value)
+            sync_interval_hours: Number(document.getElementById('mirror-interval').value),
+            auto_cleanup_enabled: document.getElementById('mirror-auto-cleanup').checked,
+            retention_snapshots: Number(document.getElementById('mirror-retention').value),
+            quarantine_days: Number(document.getElementById('mirror-quarantine').value)
         });
         if (!res.success) throw new Error(res.error || 'Falha ao salvar configuração');
         Toast.success('Configuração global do Mirror salva.');
+        await loadMirror();
     } catch (error) {
         Toast.error(error.message || 'Não foi possível salvar a configuração.');
     } finally {
         button.disabled = false;
     }
+}
+
+function openMirrorPathModal() {
+    const button = document.getElementById('btn-edit-mirror-path');
+    if (button?.classList.contains('hidden')) return;
+    document.getElementById('mirror-path-input').value = mirrorBasePath;
+    openModal('modal-mirror-path');
+}
+
+function applyMirrorPath() {
+    const value = document.getElementById('mirror-path-input').value.trim();
+    if (!value) {
+        Toast.error('Informe um caminho absoluto para o mirror.');
+        return;
+    }
+    mirrorBasePath = value;
+    document.getElementById('mirror-base-path-display').textContent = value;
+    closeModal('modal-mirror-path');
+    Toast.info('Caminho alterado localmente. Salve a configuração para persistir.');
 }
 
 async function saveMirrorOrgSetting(organizationId) {
@@ -3263,6 +3303,8 @@ function setupEventListeners() {
 
     document.getElementById('btn-save-public-theme')?.addEventListener('click', savePublicTheme);
     document.getElementById('btn-save-mirror-config')?.addEventListener('click', saveMirrorConfig);
+    document.getElementById('btn-edit-mirror-path')?.addEventListener('click', openMirrorPathModal);
+    document.getElementById('btn-confirm-mirror-path')?.addEventListener('click', applyMirrorPath);
     document.getElementById('btn-estimate-mirror')?.addEventListener('click', estimateMirror);
     document.getElementById('btn-mirror-sync-now')?.addEventListener('click', syncMirrorNow);
     document.getElementById('btn-add-mirror-distro')?.addEventListener('click', addMirrorDistro);
