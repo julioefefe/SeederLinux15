@@ -958,24 +958,203 @@ function handleMirrorSaveOrgSettings($input) {
 }
 
 function handleMirrorEstimate($input) {
-    $distros = is_array($input['distros'] ?? null) ? $input['distros'] : [];
-    $versions = is_array($input['versions'] ?? null) ? $input['versions'] : [];
-    $architectures = is_array($input['architectures'] ?? null) ? $input['architectures'] : [];
-    $components = is_array($input['components'] ?? null) ? $input['components'] : [];
+    $distroIds = array_filter(array_map('intval', $input['distros'] ?? []));
+    $versionIds = array_filter(array_map('intval', $input['versions'] ?? []));
+    $architectures = $input['architectures'] ?? [];
+    $components = $input['components'] ?? [];
 
     $allowedArchitectures = ['amd64', 'i386', 'arm64'];
-    $allowedComponents = ['main', 'contrib', 'non-free', 'restricted', 'universe'];
+    $allowedComponents = ['main', 'contrib', 'non-free', 'restricted', 'universe', 'multiverse'];
     $architectures = array_values(array_intersect($allowedArchitectures, $architectures));
     $components = array_values(array_intersect($allowedComponents, $components));
-    $estimatedGb = round(
-        count($versions ?: $distros) * max(1, count($architectures)) * max(1, count($components)) * 0.25,
-        2
-    );
 
-    jsonSuccess([
+    if ((empty($distroIds) && empty($versionIds)) || empty($architectures) || empty($components)) {
+        jsonSuccess([
+            'estimated_total_mb' => 0,
+            'estimated_gb' => 0,
+            'details' => [],
+            'errors' => [],
+            'calculation_possible' => false,
+            'message' => 'Selecione distros/versoes, arquiteturas e componentes.'
+        ]);
+    }
+
+    $cacheKey = md5(serialize([$distroIds, $versionIds, $architectures, $components]));
+    $cacheFile = sys_get_temp_dir() . '/sl-mirror-est-' . $cacheKey . '.json';
+    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 3600) {
+        $cached = json_decode(@file_get_contents($cacheFile), true);
+        if ($cached) { jsonSuccess($cached); return; }
+    }
+
+    $upstreamHosts = [
+        'debian'     => 'deb.debian.org',
+        'ubuntu'     => 'archive.ubuntu.com',
+        'linux mint' => 'packages.linuxmint.com',
+        'zorin'      => 'apt.zorin.com',
+    ];
+    $upstreamBasePaths = [
+        'deb.debian.org'         => '/debian',
+        'archive.ubuntu.com'     => '/ubuntu',
+        'packages.linuxmint.com' => '',
+        'apt.zorin.com'          => '',
+    ];
+
+    if (!empty($versionIds)) {
+        $ph = implode(',', array_fill(0, count($versionIds), '?'));
+        $versionRows = Database::fetchAll(
+            "SELECT v.id, v.distro_id, v.version, d.name as distro_name
+             FROM mirror.versions v JOIN mirror.distros d ON d.id = v.distro_id
+             WHERE v.id IN ($ph)",
+            $versionIds
+        );
+    } else {
+        $ph = implode(',', array_fill(0, count($distroIds), '?'));
+        $versionRows = Database::fetchAll(
+            "SELECT v.id, v.distro_id, v.version, d.name as distro_name
+             FROM mirror.versions v JOIN mirror.distros d ON d.id = v.distro_id
+             WHERE v.active = TRUE AND v.distro_id IN ($ph)",
+            $distroIds
+        );
+    }
+
+    $details = [];
+    $errors = [];
+    $totalBytes = 0;
+    $hasCurl = function_exists('curl_init');
+    $hasShellExec = function_exists('shell_exec');
+
+    foreach ($versionRows as $vr) {
+        $distroLower = strtolower($vr['distro_name']);
+        $matchedKey = null;
+        foreach (array_keys($upstreamHosts) as $key) {
+            if ($distroLower === $key || strpos($distroLower, $key) !== false) {
+                $matchedKey = $key;
+                break;
+            }
+        }
+        if (!$matchedKey) {
+            foreach ($architectures as $arch) {
+                foreach ($components as $comp) {
+                    $errors[] = [
+                        'distro' => $vr['distro_name'], 'version' => $vr['version'],
+                        'arch' => $arch, 'component' => $comp,
+                        'error' => 'Distro sem upstream conhecido'
+                    ];
+                }
+            }
+            continue;
+        }
+
+        $host = $upstreamHosts[$matchedKey];
+        $basePath = $upstreamBasePaths[$host] ?? '';
+        $codename = $vr['version'];
+
+        foreach ($architectures as $arch) {
+            foreach ($components as $comp) {
+                $urlBase = "https://{$host}{$basePath}/dists/{$codename}/{$comp}/binary-{$arch}/Packages";
+                $fetched = false;
+                $errorMsg = null;
+
+                foreach (['.xz', '.gz', ''] as $ext) {
+                    $url = $urlBase . $ext;
+
+                    $parsed = parse_url($url);
+                    if (!$parsed || !isset($parsed['host']) || strtolower($parsed['host']) !== $host) {
+                        $errorMsg = 'URL invalida';
+                        continue;
+                    }
+
+                    if (!$hasCurl) {
+                        $errorMsg = 'Extensao curl indisponivel no servidor';
+                        break;
+                    }
+
+                    $ch = curl_init();
+                    curl_setopt_array($ch, [
+                        CURLOPT_URL => $url,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT => 10,
+                        CURLOPT_CONNECTTIMEOUT => 5,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_MAXREDIRS => 3,
+                        CURLOPT_SSL_VERIFYPEER => false,
+                        CURLOPT_SSL_VERIFYHOST => false,
+                    ]);
+                    $data = curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    $curlError = curl_error($ch);
+                    curl_close($ch);
+
+                    if ($data === false || $httpCode !== 200) {
+                        $errorMsg = $curlError ?: 'HTTP ' . $httpCode;
+                        continue;
+                    }
+
+                    if ($ext === '.xz') {
+                        if (!$hasShellExec) { $errorMsg = 'xz sem suporte no servidor'; continue; }
+                        $tmp = @tempnam(sys_get_temp_dir(), 'pkg_');
+                        if (!$tmp) { $errorMsg = 'Falha ao criar arquivo temporario'; continue; }
+                        @file_put_contents($tmp, $data);
+                        $data = @shell_exec('xz -dc ' . escapeshellarg($tmp) . ' 2>/dev/null');
+                        @unlink($tmp);
+                        if ($data === null || $data === '') { $errorMsg = 'Falha ao descompactar xz'; continue; }
+                    } elseif ($ext === '.gz') {
+                        $decoded = @gzdecode($data);
+                        if ($decoded === false) { $errorMsg = 'Falha ao descompactar gz'; continue; }
+                        $data = $decoded;
+                    }
+
+                    $pkgCount = 0;
+                    $comboBytes = 0;
+                    if (preg_match_all('/^Size:\s*(\d+)\s*$/m', $data, $matches)) {
+                        foreach ($matches[1] as $size) {
+                            $comboBytes += (int)$size;
+                            $pkgCount++;
+                        }
+                    }
+
+                    $totalBytes += $comboBytes;
+                    $details[] = [
+                        'distro' => $vr['distro_name'], 'version' => $vr['version'],
+                        'arch' => $arch, 'component' => $comp,
+                        'size_mb' => round($comboBytes / 1048576, 2),
+                        'packages' => $pkgCount
+                    ];
+                    $fetched = true;
+                    break;
+                }
+
+                if (!$fetched) {
+                    $errors[] = [
+                        'distro' => $vr['distro_name'], 'version' => $vr['version'],
+                        'arch' => $arch, 'component' => $comp,
+                        'error' => $errorMsg ?? 'Indice nao disponivel'
+                    ];
+                }
+            }
+        }
+    }
+
+    $estimatedMb = round($totalBytes / 1048576, 2);
+    $estimatedGb = round($totalBytes / 1073741824, 2);
+    $calculationPossible = count($details) > 0;
+    $msg = $calculationPossible
+        ? (empty($errors)
+            ? sprintf('Estimativa: %.0f MB (%.2f GB) a partir dos indices upstream.', $estimatedMb, $estimatedGb)
+            : sprintf('Estimativa parcial: %.0f MB (%.2f GB). Alguns indices nao puderam ser baixados.', $estimatedMb, $estimatedGb))
+        : 'Nao foi possivel baixar nenhum indice upstream. Verifique a conexao do servidor.';
+
+    $result = [
+        'estimated_total_mb' => $estimatedMb,
         'estimated_gb' => $estimatedGb,
-        'message' => 'Estimativa simplificada; o tamanho real sera calculado quando a sincronizacao for implementada.',
-    ]);
+        'details' => $details,
+        'errors' => $errors,
+        'calculation_possible' => $calculationPossible,
+        'message' => $msg
+    ];
+
+    @file_put_contents($cacheFile, json_encode($result));
+    jsonSuccess($result);
 }
 
 function handleDashboard(?int $filterOrgId = null) {

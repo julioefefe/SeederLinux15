@@ -728,21 +728,43 @@ async function saveMirrorOrgSetting(organizationId) {
 window.saveMirrorOrgSetting = saveMirrorOrgSetting;
 
 async function estimateMirror() {
+    const button = document.getElementById('btn-estimate-mirror');
     const payload = {
         distros: [...document.querySelectorAll('[data-mirror-distro]:checked')].map(input => input.value),
         versions: [...document.querySelectorAll('[data-mirror-version]:checked')].map(input => input.value),
         architectures: [...document.querySelectorAll('[data-mirror-architecture]:checked')].map(input => input.value),
         components: [...document.querySelectorAll('[data-mirror-component]:checked')].map(input => input.value)
     };
+    if (button) button.disabled = true;
+    const msgEl = document.getElementById('mirror-estimate-message');
+    if (msgEl) msgEl.textContent = 'Calculando estimativa a partir dos indices upstream...';
     try {
         const res = await API.post('mirror-estimate', payload);
         if (!res.success) throw new Error(res.error || 'Falha ao calcular estimativa');
-        const estimated = res.data?.estimated_gb;
-        document.getElementById('mirror-estimated-space').textContent = estimated == null ? '-' : Number(estimated).toFixed(2);
-        document.getElementById('mirror-estimate-message').textContent = res.data?.message || 'Estimativa atualizada.';
+        const data = res.data || {};
+        const estimatedGb = data.estimated_gb;
+        document.getElementById('mirror-estimated-space').textContent = estimatedGb == null ? '-' : Number(estimatedGb).toFixed(2);
+        document.getElementById('mirror-estimate-message').textContent = data.message || 'Estimativa atualizada.';
+
+        const errorsEl = document.getElementById('mirror-estimate-errors');
+        if (errorsEl) {
+            const errors = data.errors || [];
+            if (errors.length > 0) {
+                errorsEl.innerHTML = errors.slice(0, 10).map(e =>
+                    `<div class="text-sm text-amber-400 mt-1">${Utils.escapeHtml(e.distro)} ${Utils.escapeHtml(e.version)} / ${Utils.escapeHtml(e.arch)} / ${Utils.escapeHtml(e.component)}: ${Utils.escapeHtml(e.error)}</div>`
+                ).join('') + (errors.length > 10 ? `<div class="text-sm text-slate-500 mt-1">... e mais ${errors.length - 10} erro(s)</div>` : '');
+                errorsEl.classList.remove('hidden');
+            } else {
+                errorsEl.innerHTML = '';
+                errorsEl.classList.add('hidden');
+            }
+        }
+
         updateMirrorCapacity();
     } catch (error) {
         Toast.error(error.message || 'Não foi possível calcular a estimativa.');
+    } finally {
+        if (button) button.disabled = false;
     }
 }
 
