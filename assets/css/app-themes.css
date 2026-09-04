@@ -58,6 +58,16 @@ html[data-app-theme="solar"] textarea {
     font-family: 'Sora', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* Efeitos visuais do tema Solar no painel: botões com gradiente e brilho no item ativo */
+html[data-app-theme="solar"] .btn-primary {
+    border: 0;
+    color: #1c1006;
+    background: linear-gradient(120deg, #f97316, #fbbf24);
+    box-shadow: 0 10px 26px rgba(249, 115, 22, 0.35);
+}
+html[data-app-theme="solar"] .btn-primary:hover { filter: brightness(1.07); }
+html[data-app-theme="solar"] .nav-item.active { box-shadow: inset 3px 0 0 0 var(--primary); text-shadow: 0 0 18px rgba(249, 115, 22, 0.45); }
+
 html[data-app-theme="solar"]:not([data-theme="light"]) {
     --bg-dark: #171009;
     --bg-darker: #0f0a06;
