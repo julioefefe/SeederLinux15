@@ -2,6 +2,7 @@
 # ============================================================================
 # SeederLinux Lite - Installation Script (Debian 13 Ready)
 # Corrigido - Mescla do original funcional com schema consolidado
+# Agora gera dinamicamente os scripts Core a partir dos arquivos em scripts/core/
 # ============================================================================
 
 set -e
@@ -169,31 +170,78 @@ setup_postgresql() {
     fi
 }
 
+# ============================================================================
+# Função que gera e aplica os scripts Core ao banco
+# ============================================================================
+generate_and_apply_core_scripts() {
+    print_header "GERANDO E APLICANDO SCRIPTS CORE"
+
+    local GEN_SCRIPT="${SCRIPT_DIR}/gen_insert_core.py"
+    local SQL_OUTPUT="${SCRIPT_DIR}/insert_core_scripts.sql"
+
+    # Verifica se o script Python existe
+    if [ ! -f "$GEN_SCRIPT" ]; then
+        print_error "gen_insert_core.py não encontrado em ${SCRIPT_DIR}"
+        print_error "Não foi possível gerar o SQL dos scripts Core."
+        exit 1
+    fi
+
+    # Executa o gerador
+    print_step "Executando gen_insert_core.py para gerar insert_core_scripts.sql..."
+    if ! python3 "$GEN_SCRIPT"; then
+        print_error "Falha ao gerar insert_core_scripts.sql"
+        exit 1
+    fi
+
+    if [ ! -f "$SQL_OUTPUT" ]; then
+        print_error "Arquivo $SQL_OUTPUT não foi gerado."
+        exit 1
+    fi
+
+    print_step "Aplicando scripts Core ao banco de dados..."
+    if PGPASSWORD="${DB_PASS}" psql -h localhost -U "${DB_USER}" -d "${DB_NAME}" -f "$SQL_OUTPUT" 2>&1 | grep -v "already exists" | grep -v "ERROR:  duplicate key"; then
+        print_success "Scripts Core carregados com sucesso"
+    else
+        print_warning "Alguns avisos podem ter ocorrido, mas a operação continuou."
+    fi
+}
+
+# ============================================================================
+# apply_database_schema - modificada
+# ============================================================================
 apply_database_schema() {
     print_header "APLICANDO SCHEMA DO BANCO DE DADOS"
 
     SCHEMA_FILE="${SCRIPT_DIR}/schema.sql"
     if [ ! -f "$SCHEMA_FILE" ]; then
-        print_error "schema.sql nao encontrado em ${SCRIPT_DIR}"
+        print_error "schema.sql não encontrado em ${SCRIPT_DIR}"
         exit 1
     fi
+
+    # Verifica se o banco já existe e se a tabela scripts tem registros
+    local SCRIPTS_EXIST=$(PGPASSWORD="${DB_PASS}" psql -h localhost -U "${DB_USER}" -d "${DB_NAME}" -tAc "SELECT COUNT(*) FROM scripts;" 2>/dev/null || echo "0")
 
     print_step "Aplicando schema: $(basename "$SCHEMA_FILE")"
     PGPASSWORD="${DB_PASS}" psql -h localhost -U "${DB_USER}" -d "${DB_NAME}" -f "$SCHEMA_FILE" 2>&1 | grep -v "already exists" || true
 
-    # Garantir constraint UNIQUE em scripts.filename antes de carregar os scripts
-    # (necessaria para o ON CONFLICT (filename) do insert_core_scripts.sql)
+    # Garantir constraint UNIQUE em scripts.filename
     print_step "Garantindo constraint UNIQUE em scripts.filename..."
     PGPASSWORD="${DB_PASS}" psql -h localhost -U "${DB_USER}" -d "${DB_NAME}" -c \
         "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'scripts_filename_key') THEN ALTER TABLE scripts ADD CONSTRAINT scripts_filename_key UNIQUE (filename); END IF; END \$\$;" 2>/dev/null || true
 
-    # Carregar scripts Core de provisionamento
-    if [ -f "${SCRIPT_DIR}/insert_core_scripts.sql" ]; then
-        print_step "Carregando scripts Core de provisionamento..."
-        PGPASSWORD="${DB_PASS}" psql -h localhost -U "${DB_USER}" -d "${DB_NAME}" -f "${SCRIPT_DIR}/insert_core_scripts.sql" 2>&1 | grep -v "already exists" || true
-        print_success "Scripts Core carregados com sucesso"
+    # Se o banco já tem scripts (instalação existente), pergunta se quer atualizar
+    if [ "$SCRIPTS_EXIST" -gt 0 ]; then
+        print_warning "O banco de dados já contém scripts Core (${SCRIPTS_EXIST} registros)."
+        read -p "Deseja regenerar e reaplicar os scripts Core a partir dos arquivos atuais? (s/N): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Ss]$ ]]; then
+            generate_and_apply_core_scripts
+        else
+            print_step "Mantendo scripts Core existentes."
+        fi
     else
-        print_warning "Arquivo insert_core_scripts.sql nao encontrado — scripts Core nao foram carregados"
+        # Instalação nova: gera e aplica
+        generate_and_apply_core_scripts
     fi
 
     print_success "Schema aplicado com sucesso"
