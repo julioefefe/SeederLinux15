@@ -109,6 +109,32 @@ h1 span, h2 span { color: var(--cyan); }
 .final-cta { width: min(1180px, calc(100% - 64px)); margin: 0 auto 90px; padding: 85px 30px; overflow: hidden; position: relative; border: 1px solid rgba(117,230,208,.25); border-radius: 22px; text-align: center; background: radial-gradient(circle at 50% 50%, rgba(54,115,113,.22), transparent 58%), linear-gradient(145deg, rgba(117,230,208,.08), rgba(255,255,255,.025)); }.final-cta .section-kicker { justify-content: center; }.final-cta h2 { margin: 26px 0 17px; position: relative; color: var(--white); font-size: clamp(36px, 5vw, 60px); line-height: 1; letter-spacing: -.075em; }.final-cta p { max-width: 440px; margin: 0 auto; color: #92a6b6; font-size: 13px; line-height: 1.7; }.cta-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 11px; margin-top: 29px; }.cta-glow { width: 260px; height: 260px; position: absolute; left: calc(50% - 130px); top: -190px; border-radius: 50%; background: var(--cyan); opacity: .13; filter: blur(55px); }
 .site-footer { display: grid; grid-template-columns: 1fr 1fr 1.4fr; align-items: center; gap: 30px; padding: 25px 0 40px; border-top: 1px solid var(--line); }.footer-brand { font-size: 13px; }.site-footer p { margin: 0; color: #687e93; font-size: 10px; line-height: 1.5; }.footer-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 19px; color: #60768b; font: 9px var(--mono); text-align: right; }.toast { position: fixed; right: 25px; bottom: 25px; z-index: 30; padding: 13px 15px; border: 1px solid rgba(117,230,208,.3); border-radius: 7px; color: var(--cyan); background: #102b33; box-shadow: var(--shadow); font: 10px var(--mono); opacity: 0; pointer-events: none; transform: translateY(12px); transition: opacity .25s ease, transform .25s ease; }.toast.show { opacity: 1; transform: translateY(0); }
 
+/* ===== Tema claro ===== */
+[data-theme="light"] {
+  --ink: #edf3f9;
+  --ink-2: #ffffff;
+  --ink-3: #f6f9fc;
+  --muted: #5b6f85;
+  --muted-light: #33506b;
+  --line: rgba(10, 26, 46, .14);
+  --line-strong: rgba(10, 26, 46, .32);
+  --white: #0a1a2e;
+  --cyan: #0d8f7e;
+  --cyan-2: #0b7a6c;
+  --orange: #c96a1d;
+  --orange-soft: rgba(201, 106, 29, .12);
+  --green: #1e8a4c;
+  --shadow: 0 24px 60px rgba(10, 26, 46, .12);
+}
+
+[data-theme="light"] .site-header::before { background: rgba(237, 243, 249, .94); }
+[data-theme="light"] .main-nav { background: #ffffff; }
+[data-theme="light"] .brand em { color: #5b6f85; }
+[data-theme="light"] .eyebrow small { color: #48607a; background: rgba(13, 143, 126, .07); }
+[data-theme="light"] .hero::before { background: radial-gradient(circle, rgba(13, 143, 126, .13), transparent 68%); }
+[data-theme="light"] .terminal-body, [data-theme="light"] .terminal-card { background: #0a1626; color: var(--muted-light); }
+[data-theme="light"] .flow-connector::before { border-color: rgba(10, 26, 46, .3); }
+
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes travel { 0% { transform: translateX(-26px); opacity: 0; } 20%, 80% { opacity: 1; } 100% { transform: translateX(26px); opacity: 0; } }
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity .65s ease, transform .65s ease; }.reveal.visible { opacity: 1; transform: none; }
