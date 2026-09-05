@@ -37,7 +37,6 @@ CATALOG = [
     (20, 'core_session_sddm.sh',     'Sessao SDDM',                      'Configura SDDM como display manager (autoselecao via DISPLAY_MANAGER=sddm).'),
     (21, 'core_agent.sh',            'Agente SeederLinux',               'Instala e configura o agente SeederLinux.'),
     (22, 'core_proxy.sh',            'Configuracao de Proxy',            'Configura proxy corporativo no sistema (apt, curl, wget, env).'),
-    (23, 'core_sync.sh',             'Aplicador de politicas (GPO-like)', 'Instala seeder-sync com timer systemd para reaplicacao continua de politicas (branding, navegadores, proxy, impressoras, compartilhamentos, certificados).'),
 ]
 
 def escape_sql_literal(s: str) -> str:
@@ -117,7 +116,7 @@ def main():
 
     footer = """
 -- ============================================================================
--- FIM: 23 scripts core inseridos.
+-- FIM: 22 scripts core inseridos.
 -- Ordem de execucao:
 --   01 core_dns.sh              (configura DNS ANTES de apt-get update)
 --   02 core_repositories.sh     (agora tem DNS resolvendo)
@@ -139,7 +138,6 @@ def main():
 --   18 core_session_{lightdm|gdm3|sddm}.sh   (bundle mantem apenas 1 conforme DISPLAY_MANAGER)
 --   21 core_agent.sh
 --   22 core_proxy.sh
---   23 core_sync.sh
 -- ============================================================================
 """
     parts.append(footer)
