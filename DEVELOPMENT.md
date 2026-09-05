@@ -56,7 +56,7 @@ Quando adicionar ou modificar scripts em `scripts/core/`:
 python3 install/gen_insert_core.py
 ```
 
-Isso regenera `install/insert_core_scripts.sql` com os 22 scripts na ordem correta.
+Isso regenera `install/insert_core_scripts.sql` com os 23 scripts na ordem correta.
 
 ### 4. Servir Localmente (Desenvolvimento)
 
@@ -84,7 +84,7 @@ SeederLinux_13/
 │   ├── db.php              # Classe Database
 │   └── functions.php       # Funções auxiliares
 ├── scripts/
-│   └── core/               # 22 scripts de configuração
+│   └── core/               # 23 scripts de configuração
 ├── install/
 │   ├── schema.sql          # Schema do banco
 │   ├── gen_insert_core.py  # Gerador do catálogo

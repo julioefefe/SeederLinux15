@@ -23,7 +23,7 @@ O projeto encontra-se em estágio **avançado de MVP funcional**, com as princip
 | 2 | Gestão de organizações (OMs) com isolamento de dados e soft-delete | ✅ Funcional |
 | 3 | Catálogo de variáveis tipadas (string, boolean, integer, array, URL, IP, password, select, image, json) | ✅ Funcional |
 | 4 | Variáveis por OM com sobrescrita de valores padrão | ✅ Funcional |
-| 5 | 22 scripts Core com ordem oficial definida | ✅ Presente |
+| 5 | 23 scripts Core com ordem oficial definida | ✅ Presente |
 | 6 | Geração de bundle com substituição de placeholders `{{VARIAVEL}}` | ✅ Funcional |
 | 7 | Sanitização de `SSH_GROUPS`, `DC_IP_LIST`, `NTP_SERVER`, `HOMEPAGE` e URLs de imagens | ✅ Implementado |
 | 8 | Modo não interativo (`NON_INTERACTIVE`) no bundle e nos scripts | ✅ Implementado |
@@ -100,7 +100,7 @@ O projeto encontra-se em estágio **avançado de MVP funcional**, com as princip
 
 ## 4. Status dos Scripts Core
 
-Os 22 scripts estão presentes e com a ordem oficial:
+Os 23 scripts estão presentes e com a ordem oficial:
 
 | Ordem | Script | Status |
 |---:|---|---|

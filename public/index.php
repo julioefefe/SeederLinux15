@@ -53,7 +53,7 @@ $release = 'MVP 1.0';
             <div class="terminal-body">
               <p><b class="prompt">$</b> seeder <span>generate --om</span> alpha</p>
               <p class="terminal-muted">loading organization variables...</p>
-              <p><b class="check">✓</b> 22 core modules resolved</p>
+              <p><b class="check">✓</b> 23 core modules resolved</p>
               <p><b class="check">✓</b> non-interactive mode enabled</p>
               <p><b class="check">✓</b> version metadata attached</p>
               <p class="terminal-cursor"><b class="prompt">$</b> <span class="cursor"></span></p>
@@ -67,7 +67,7 @@ $release = 'MVP 1.0';
       </section>
 
       <section class="proof-strip" aria-label="Indicadores da plataforma">
-        <div><strong>22</strong><span>módulos Core<br>na ordem oficial</span></div>
+        <div><strong>23</strong><span>módulos Core<br>na ordem oficial</span></div>
         <div><strong>03</strong><span>camadas de<br>versionamento</span></div>
         <div><strong>∞</strong><span>organizações<br>com isolamento</span></div>
         <div><strong>01</strong><span>bundle shell<br>autônomo por OM</span></div>
@@ -98,7 +98,7 @@ $release = 'MVP 1.0';
           <div class="flow-connector"><span></span><small>configura</small></div>
           <div class="flow-node node-db"><span class="node-number">02</span><span class="node-icon">◫</span><strong>PostgreSQL local</strong><small>versões · auditoria</small></div>
           <div class="flow-connector"><span></span><small>gera</small></div>
-          <div class="flow-node node-bundle"><span class="node-number">03</span><span class="node-icon">▣</span><strong>Bundle autônomo</strong><small>22 scripts · placeholders</small></div>
+          <div class="flow-node node-bundle"><span class="node-number">03</span><span class="node-icon">▣</span><strong>Bundle autônomo</strong><small>23 scripts · placeholders</small></div>
           <div class="flow-connector"><span></span><small>executa</small></div>
           <div class="flow-node node-endpoint"><span class="node-number">04</span><span class="node-icon">⌁</span><strong>Estação Linux</strong><small>provisionada · check-in</small></div>
         </div>
@@ -135,7 +135,7 @@ $release = 'MVP 1.0';
   php-mbstring php-curl php-json php-xml php-gd \
   postgresql postgresql-contrib git python3 jq
 
-<span class="code-comment"># gerar o catálogo com os 22 scripts Core</span>
+<span class="code-comment"># gerar o catálogo com os 23 scripts Core</span>
 <span class="code-command">python3</span> install/gen_insert_core.py</code></pre><div class="code-foot"><span>Debian / Ubuntu recomendado</span><span>Apache ou Nginx</span></div></div>
       </section>
 

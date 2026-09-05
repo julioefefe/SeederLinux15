@@ -41,7 +41,7 @@ A plataforma é composta por:
 | Backend | PHP 8+ monolítico (`api/index.php`) |
 | Banco de dados | PostgreSQL 16+ local |
 | Frontend | HTML5 + CSS3 + JavaScript vanilla |
-| Scripts de provisionamento | Bash 5+ (22 módulos core) |
+| Scripts de provisionamento | Bash 5+ (23 módulos core) |
 | Agente | Python 3 |
 
 A arquitetura foi desenhada para **não depender de serviços cloud nem frameworks JS pesados**, garantindo:
@@ -82,7 +82,7 @@ Exemplos de variáveis gerenciadas:
 
 ### 4.3 Módulos Core de provisionamento
 
-O sistema utiliza **22 scripts Bash Core** com ordem de execução oficial:
+O sistema utiliza **23 scripts Bash Core** com ordem de execução oficial:
 
 | Ordem | Script | Responsabilidade |
 |---:|---|---|
@@ -115,7 +115,7 @@ O bundle gerado é um **script shell único e autônomo** que:
 
 - Valida execução como root.
 - Aplica variáveis da OM.
-- Executa os 22 módulos na ordem correta.
+- Executa os 23 módulos na ordem correta.
 - Respeita o modo **não interativo** (`NON_INTERACTIVE`).
 - Sanitiza automaticamente valores críticos.
 - Inclui metadados de versão de cada script.

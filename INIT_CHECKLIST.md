@@ -17,7 +17,7 @@ This file tracks the initialization status and provides a quick reference for co
 - ✅ API layer: `api/` (index.php, download.php)
 - ✅ Library layer: `lib/` (config.php, db.php, functions.php)
 - ✅ Database: `install/schema.sql` (24.5KB)
-- ✅ Scripts: `scripts/core/` (22 core scripts)
+- ✅ Scripts: `scripts/core/` (23 core scripts)
 - ✅ Installation: `install/gen_insert_core.py` (script catalog generator)
 - ✅ Frontend: HTML files (index.html, login.html, admin.html)
 - ✅ Assets: CSS, JS, images in `assets/`
@@ -62,7 +62,7 @@ curl http://localhost:8000/api/
 
 ## 📋 Core Scripts Overview
 
-SeederLinux executes 22 scripts in strict order during Linux station setup:
+SeederLinux executes 23 scripts in strict order during Linux station setup:
 
 | Order | Script | Purpose |
 |------:|--------|---------|

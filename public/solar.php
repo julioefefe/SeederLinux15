@@ -63,7 +63,7 @@ $release = 'MVP 1.0';
           <pre><code><b class="prompt">$</b> sudo bash bundle.sh
 
 <em>preparando a estação...</em>
-<span class="ok">✓ 22 módulos aplicados</span>
+<span class="ok">✓ 23 módulos aplicados</span>
 <span class="ok">✓ identidade da OM instalada</span>
 <span class="ok">✓ estação pronta em 4 min 12 s</span>
 
@@ -77,7 +77,7 @@ $release = 'MVP 1.0';
     <!-- ===== PILLS DE INDICADORES (dados vivos) ===== -->
     <div class="stat-pills" aria-label="Indicadores">
       <div class="pill"><strong id="stat-bundles">-</strong><span>bundles publicados</span></div>
-      <div class="pill"><strong>22</strong><span>módulos de configuração</span></div>
+      <div class="pill"><strong>23</strong><span>módulos de configuração</span></div>
       <div class="pill"><strong id="stat-updated">-</strong><span>último bundle</span></div>
       <div class="pill"><strong>100%</strong><span>local, sem nuvem</span></div>
     </div>
@@ -85,8 +85,8 @@ $release = 'MVP 1.0';
     <!-- ===== LETREIRO ===== -->
     <div class="ticker" aria-hidden="true">
       <div class="ticker-track">
-        <span>1 comando por estação <i>✦</i> 22 módulos prontos <i>✦</i> 100% local, sem nuvem <i>✦</i> zero improviso <i>✦</i> padrão da OM em toda a frota <i>✦</i></span>
-        <span>1 comando por estação <i>✦</i> 22 módulos prontos <i>✦</i> 100% local, sem nuvem <i>✦</i> zero improviso <i>✦</i> padrão da OM em toda a frota <i>✦</i></span>
+        <span>1 comando por estação <i>✦</i> 23 módulos prontos <i>✦</i> 100% local, sem nuvem <i>✦</i> zero improviso <i>✦</i> padrão da OM em toda a frota <i>✦</i></span>
+        <span>1 comando por estação <i>✦</i> 23 módulos prontos <i>✦</i> 100% local, sem nuvem <i>✦</i> zero improviso <i>✦</i> padrão da OM em toda a frota <i>✦</i></span>
       </div>
     </div>
 

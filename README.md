@@ -14,7 +14,7 @@ O SeederLinux Lite automatiza a preparação e a personalização de estações 
 
 - Gestão de múltiplas organizações (OMs) com isolamento de dados
 - Catálogo de variáveis tipadas, com valores por organização
-- 22 scripts Core de provisionamento
+- 23 scripts Core de provisionamento
 - Geração dinâmica de bundles com substituição de placeholders
 - Edição e versionamento de scripts Core
 - Overrides locais por OM com herança do padrão global

@@ -2390,7 +2390,7 @@ function handleGenerateBundle($input) {
         );
     }
 
-    // Todos os 22 scripts Core são incluídos no bundle.
+    // Todos os 23 scripts Core são incluídos no bundle.
     // Cada script de sessão (lightdm, gdm3, sddm) decide internamente se executa ou não.
 
     $bundle = "#!/bin/bash\n";

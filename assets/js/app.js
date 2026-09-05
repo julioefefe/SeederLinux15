@@ -268,6 +268,24 @@ async function loadPublicBundles() {
     }
 }
 
+function updateClassicCoreCount() {
+    if (!document.body.classList.contains('public-page')) return;
+    const replacements = [
+        ['Scripts incluidos: 22', 'Scripts incluidos: 23'],
+        ['22 scripts Core', '23 scripts Core'],
+        ['22', '23']
+    ];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    textNodes.forEach((node) => {
+        replacements.forEach(([from, to]) => {
+            node.nodeValue = node.nodeValue.replace(from, to);
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    updateClassicCoreCount();
     if (document.querySelector('.public-page')) loadPublicBundles();
 });
