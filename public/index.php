@@ -13,19 +13,13 @@ $release = 'MVP 1.0';
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/assets/css/styles.css">
-  <script>
-    (function () {
-      var theme = localStorage.getItem('seederlinux-theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
-    })();
-  </script>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="site-shell">
     <header class="site-header" id="topo">
       <a class="brand" href="#topo" aria-label="SeederLinux Lite — início">
-        <img class="brand-logo" src="/assets/images/seederlinux-logo.png" alt="">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
         <span>Seeder<span>Linux</span> <em>Lite</em></span>
       </a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">
@@ -35,13 +29,8 @@ $release = 'MVP 1.0';
         <a href="#plataforma">Plataforma</a>
         <a href="#arquitetura">Arquitetura</a>
         <a href="#governanca">Governança</a>
-        <a href="#bundles">Bundles</a>
         <a href="#transparencia">Status</a>
-        <button class="theme-toggle-btn" type="button" onclick="toggleTheme()" aria-label="Alternar tema claro/escuro" title="Alternar tema">
-          <span class="theme-icon-dark" aria-hidden="true">☾</span>
-          <span class="theme-icon-light" aria-hidden="true">☀</span>
-        </button>
-        <a class="nav-cta" href="/login.html">Acessar painel <span aria-hidden="true">↗</span></a>
+        <a class="nav-cta" href="#implantacao">Ver implantação <span aria-hidden="true">↗</span></a>
       </nav>
     </header>
 
@@ -133,38 +122,6 @@ $release = 'MVP 1.0';
         <div class="version-ladder" aria-label="Precedência das versões de script"><div class="ladder-item active"><span>01</span><div><strong>Override local da OM</strong><small>Exceção controlada para uma organização</small></div><b>efetivo</b></div><div class="ladder-item"><span>02</span><div><strong>GAP Default</strong><small>Padrão global para as OMs sem override</small></div></div><div class="ladder-item"><span>03</span><div><strong>Factory</strong><small>Versão original preservada</small></div></div><div class="ladder-item"><span>04</span><div><strong>Conteúdo base</strong><small>Fallback do catálogo de scripts</small></div></div></div>
       </section>
 
-      <section class="section bundles-section" id="bundles" aria-labelledby="bundles-title">
-        <div class="section-kicker">distribuição</div>
-        <div class="split-heading">
-          <h2 id="bundles-title">Bundles disponíveis<br><span>para download</span></h2>
-          <p>Arquivos publicados pelo painel administrativo. O conteúdo é específico para cada organização.</p>
-        </div>
-        <div class="bundle-panel">
-          <div class="bundle-panel-head">
-            <span>PUBLICADOS RECENTEMENTE</span>
-            <span id="bundle-status" class="bundle-status-label">Carregando...</span>
-          </div>
-          <div class="table-scroll">
-            <table class="public-table">
-              <thead>
-                <tr>
-                  <th>Arquivo</th>
-                  <th>Organização</th>
-                  <th>Descrição</th>
-                  <th>Scripts</th>
-                  <th>Gerado em</th>
-                  <th><span class="sr-only">Ação</span></th>
-                </tr>
-              </thead>
-              <tbody id="bundles-tbody">
-                <tr><td colspan="6" class="table-state"><span class="loader" aria-hidden="true"></span> Carregando bundles...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <p class="section-note">Novos bundles são gerados no <a href="/login.html">painel administrativo</a>.</p>
-      </section>
-
       <section class="section transparency-section" id="transparencia" aria-labelledby="transparency-title">
         <div class="section-kicker">05 / transparência para TI</div>
         <div class="split-heading"><h2 id="transparency-title">Pronto para avançar,<br>sem esconder o que <span>falta.</span></h2><p>O MVP está funcional em nível de aplicação e gestão. A validação assistida é a próxima etapa — com integração AD real e controles de segurança críticos no centro da evolução.</p></div>
@@ -182,24 +139,12 @@ $release = 'MVP 1.0';
 <span class="code-command">python3</span> install/gen_insert_core.py</code></pre><div class="code-foot"><span>Debian / Ubuntu recomendado</span><span>Apache ou Nginx</span></div></div>
       </section>
 
-      <section class="section download-section" id="download" aria-labelledby="download-title">
-        <div class="section-kicker">cliente da estação</div>
-        <div class="split-heading">
-          <h2 id="download-title">Agente SeederLinux<br><span>para check-in</span></h2>
-          <p>Baixe o agente Python para o check-in e o recebimento de bundles da estação.</p>
-        </div>
-        <div class="download-actions">
-          <a class="button button-primary" href="/api/download.php?file=agent.py">Baixar agent.py <span aria-hidden="true">↓</span></a>
-          <a class="button button-outline" href="https://github.com/Toledo-JC/SeederLinux_14" target="_blank" rel="noopener">Ver projeto no GitHub <span aria-hidden="true">↗</span></a>
-        </div>
-      </section>
-
-      <section class="final-cta" aria-labelledby="cta-title"><div class="cta-glow"></div><div class="section-kicker">uma base para operações previsíveis</div><h2 id="cta-title">Leve clareza para<br>a sua <span>próxima estação.</span></h2><p>Padronização, controle de versões, isolamento por organização e auditoria completa em uma plataforma local.</p><div class="cta-actions"><a class="button button-primary" href="#bundles">Ver bundles disponíveis <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#topo">Voltar ao início <span aria-hidden="true">↑</span></a></div></section>
+      <section class="final-cta" aria-labelledby="cta-title"><div class="cta-glow"></div><div class="section-kicker">uma base para operações previsíveis</div><h2 id="cta-title">Leve clareza para<br>a sua <span>próxima estação.</span></h2><p>Padronização, controle de versões, isolamento por organização e auditoria completa em uma plataforma local.</p><div class="cta-actions"><a class="button button-primary" href="https://github.com/Toledo-JC/SeederLinux_14" target="_blank" rel="noopener">Ver projeto no GitHub <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#topo">Voltar ao início <span aria-hidden="true">↑</span></a></div></section>
     </main>
 
-    <footer class="site-footer"><a class="brand footer-brand" href="#topo"><img class="brand-logo" src="/assets/images/seederlinux-logo.png" alt=""><span>Seeder<span>Linux</span> <em>Lite</em></span></a><p>Provisionamento Linux com previsibilidade, rastreabilidade e eficiência.</p><div class="footer-meta"><span>PHP · PostgreSQL · Bash · Python</span><span>documentação técnica baseada no projeto</span><span>© <span id="current-year"></span> SeederLinux Lite</span></div></footer>
+    <footer class="site-footer"><a class="brand footer-brand" href="#topo"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Seeder<span>Linux</span> <em>Lite</em></span></a><p>Provisionamento Linux com previsibilidade, rastreabilidade e eficiência.</p><div class="footer-meta"><span>PHP · PostgreSQL · Bash · Python</span><span>documentação técnica baseada no projeto</span><span>© <span id="current-year"></span> SeederLinux Lite</span></div></footer>
   </div>
   <div class="toast" role="status" aria-live="polite">Comando copiado para a área de transferência.</div>
-  <script src="/public/assets/js/script.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
