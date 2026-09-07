@@ -13,7 +13,7 @@ $release = 'MVP 1.0';
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/assets/css/styles.css">
+  <link rel="stylesheet" href="/public/assets/css/styles.css?v=<?= filemtime(__DIR__ . '/assets/css/styles.css') ?>">
   <script>
     (function () {
       var theme = localStorage.getItem('seederlinux-theme') || 'dark';
@@ -37,6 +37,7 @@ $release = 'MVP 1.0';
         <a href="#governanca">Governança</a>
         <a href="#bundles">Bundles</a>
         <a href="#transparencia">Status</a>
+        <a href="/public/manual.php">Manual</a>
         <button class="theme-toggle-btn" type="button" onclick="toggleTheme()" aria-label="Alternar tema claro/escuro" title="Alternar tema">
           <span class="theme-icon-dark" aria-hidden="true">☾</span>
           <span class="theme-icon-light" aria-hidden="true">☀</span>
@@ -200,6 +201,6 @@ $release = 'MVP 1.0';
     <footer class="site-footer"><a class="brand footer-brand" href="#topo"><img class="brand-logo" src="/assets/images/seederlinux-logo.png" alt=""><span>Seeder<span>Linux</span> <em>Lite</em></span></a><p>Provisionamento Linux com previsibilidade, rastreabilidade e eficiência.</p><div class="footer-meta"><span>PHP · PostgreSQL · Bash · Python</span><span>documentação técnica baseada no projeto</span><span>© <span id="current-year"></span> SeederLinux Lite</span></div></footer>
   </div>
   <div class="toast" role="status" aria-live="polite">Comando copiado para a área de transferência.</div>
-  <script src="/public/assets/js/script.js"></script>
+  <script src="/public/assets/js/script.js?v=<?= filemtime(__DIR__ . '/assets/js/script.js') ?>"></script>
 </body>
 </html>

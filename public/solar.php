@@ -13,7 +13,7 @@ $release = 'MVP 1.0';
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/public/assets/css/solar.css">
+  <link rel="stylesheet" href="/public/assets/css/solar.css?v=<?= filemtime(__DIR__ . '/assets/css/solar.css') ?>">
   <script>
     (function () {
       var theme = localStorage.getItem('seederlinux-theme') || 'dark';
@@ -37,6 +37,7 @@ $release = 'MVP 1.0';
       <a href="#como-funciona">Como funciona</a>
       <a href="#bundles">Bundles</a>
       <a href="#download">Download</a>
+      <a href="/public/manual.php">Manual</a>
       <button class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Alternar tema claro/escuro" title="Alternar tema">
         <span class="icon-moon" aria-hidden="true">☾</span>
         <span class="icon-sun hidden" aria-hidden="true">☀</span>
@@ -210,6 +211,6 @@ $release = 'MVP 1.0';
     </div>
   </footer>
 
-  <script src="/public/assets/js/solar.js"></script>
+  <script src="/public/assets/js/solar.js?v=<?= filemtime(__DIR__ . '/assets/js/solar.js') ?>"></script>
 </body>
 </html>

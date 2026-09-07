@@ -9,7 +9,7 @@ $pageTitle = 'SeederLinux Lite | Provisionamento de estações Linux';
     <meta name="description" content="SeederLinux Lite: provisionamento, padronizacao e gestao de estacoes Linux em ambientes multi-organizacionais.">
     <meta name="author" content="SeederLinux Lite">
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@ $pageTitle = 'SeederLinux Lite | Provisionamento de estações Linux';
         <a class="brand" href="/" aria-label="SeederLinux Lite - inicio"><img src="/assets/images/seederlinux-logo.png" alt=""><span>SeederLinux <strong>Lite</strong></span></a>
         <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Abrir menu">
         <label for="nav-toggle" class="nav-toggle-label" aria-hidden="true"><span></span><span></span><span></span></label>
-        <div class="nav-links"><a href="#recursos">Recursos</a><a href="#bundles">Bundles</a><a href="#como-funciona">Como funciona</a><a href="#docs">Documentacao</a></div>
+        <div class="nav-links"><a href="#recursos">Recursos</a><a href="#bundles">Bundles</a><a href="#como-funciona">Como funciona</a><a href="#docs">Documentacao</a><a href="/public/manual.php">Manual</a></div>
         <div class="nav-actions"><button id="theme-toggle" class="icon-button" type="button" onclick="toggleTheme()" aria-label="Alternar tema" title="Alternar tema"><span id="theme-icon-dark" aria-hidden="true">&#9790;</span><span id="theme-icon-light" aria-hidden="true">&#9788;</span></button><a class="button button-primary button-small" href="/login.html">Acessar painel</a></div>
     </nav>
 
@@ -57,6 +57,6 @@ $pageTitle = 'SeederLinux Lite | Provisionamento de estações Linux';
     </main>
 
     <footer class="public-footer"><a class="brand" href="/" aria-label="Voltar ao inicio"><img src="/assets/images/seederlinux-logo.png" alt=""><span>SeederLinux <strong>Lite</strong></span></a><span>Provisionamento Linux local e auditavel.</span><a href="/login.html">Acessar sistema &#8594;</a></footer>
-    <script src="/assets/js/app.js"></script>
+    <script src="/assets/js/app.js?v=<?= filemtime(__DIR__ . '/../assets/js/app.js') ?>"></script>
 </body>
 </html>
