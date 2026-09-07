@@ -1,5 +1,21 @@
 <?php
+require_once __DIR__ . '/../lib/config.php';
+require_once __DIR__ . '/../lib/db.php';
+
 $pageTitle = 'SeederLinux Lite | Manual de uso';
+
+// O manual segue o tema público definido no painel (classic | modern | solar)
+$theme = 'classic';
+try {
+    $row = Database::fetchOne("SELECT value FROM settings WHERE key = 'public_theme'");
+    if ($row && in_array($row['value'], ['classic', 'modern', 'solar'], true)) {
+        $theme = $row['value'];
+    }
+} catch (Throwable $e) {
+    // Sem banco: cai no clássico
+}
+
+$hasToggle = in_array($theme, ['modern', 'solar'], true);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -8,27 +24,88 @@ $pageTitle = 'SeederLinux Lite | Manual de uso';
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Manual de uso do SeederLinux Lite: provisionamento de estações Linux padronizado, versionado e auditável.">
   <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
+  <link rel="icon" href="/assets/images/seederlinux-logo.png">
+  <?php if ($theme === 'modern'): ?>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <?php elseif ($theme === 'solar'): ?>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <?php endif; ?>
+  <?php if ($hasToggle): ?>
+  <script>
+    (function () {
+      var theme = localStorage.getItem('seederlinux-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <?php endif; ?>
   <style>
     :root {
-      --bg: #f6f8fb; --card: #ffffff; --ink: #0d1b2e; --muted: #54687f;
-      --line: #dbe4ee; --accent: #0d8f7e; --accent-soft: rgba(13,143,126,.1);
       --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       --sans: 'Segoe UI', Inter, system-ui, -apple-system, sans-serif;
+      --radius: 14px;
+      /* clássico (padrão) */
+      --bg: #0f172a; --bg-soft: #0f172a; --card: #1e293b; --text: #f1f5f9; --muted: #94a3b8;
+      --line: #334155; --line-soft: rgba(51, 65, 85, .6);
+      --accent: #3b82f6; --accent-strong: #60a5fa; --accent-soft: rgba(59, 130, 246, .14);
+      --header-bg: rgba(15, 23, 42, .86);
     }
+    body.theme-modern {
+      --sans: 'Manrope', Inter, ui-sans-serif, system-ui, sans-serif;
+      --bg: #07111f; --bg-soft: #0b1a2d; --card: #0b1a2d; --text: #f4f7fa; --muted: #9fb0c4;
+      --line: rgba(141, 173, 203, .17); --line-soft: rgba(141, 173, 203, .1);
+      --accent: #75e6d0; --accent-strong: #49cfbf; --accent-soft: rgba(117, 230, 208, .12);
+      --header-bg: rgba(7, 17, 31, .84);
+    }
+    body.theme-solar {
+      --sans: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --bg: #171009; --bg-soft: #1e140b; --card: #231610; --text: #f8ede0; --muted: #bda184;
+      --line: rgba(255, 220, 180, .26); --line-soft: rgba(255, 220, 180, .12);
+      --accent: #ff7a1a; --accent-strong: #ffb454; --accent-soft: rgba(255, 122, 26, .12);
+      --header-bg: rgba(23, 16, 9, .84);
+    }
+    html[data-theme="light"] body.theme-modern {
+      --bg: #f4f7fa; --bg-soft: #ffffff; --card: #ffffff; --text: #0a1a2e; --muted: #5b6f85;
+      --line: rgba(10, 26, 46, .32); --line-soft: rgba(10, 26, 46, .14);
+      --accent: #0d8f7e; --accent-strong: #0b7a6c; --accent-soft: rgba(13, 143, 126, .1);
+      --header-bg: rgba(244, 247, 250, .86);
+    }
+    html[data-theme="light"] body.theme-solar {
+      --bg: #fdf6ec; --bg-soft: #fff3e2; --card: #ffffff; --text: #26170a; --muted: #6f5841;
+      --line: rgba(120, 80, 30, .3); --line-soft: rgba(120, 80, 30, .14);
+      --accent: #e56a00; --accent-strong: #c2530a; --accent-soft: rgba(229, 106, 0, .1);
+      --header-bg: rgba(253, 246, 236, .86);
+    }
+
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.7; }
-    .wrap { width: min(860px, calc(100% - 48px)); margin: 0 auto; padding: 40px 0 80px; }
-    a { color: var(--accent); }
-    .manual-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 40px; }
-    .manual-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
-    .manual-brand img { width: 32px; height: 32px; }
+    .hidden { display: none; }
+    html { scroll-behavior: smooth; scroll-padding-top: 150px; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.7; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-strong); }
+
+    /* ---------- Cabeçalho fixo: marca + links + índice ---------- */
+    .manual-header { position: sticky; top: 0; z-index: 50; background: var(--header-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 1px solid var(--line-soft); }
+    .manual-header .wrap { width: min(860px, calc(100% - 48px)); margin: 0 auto; }
+    .manual-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; }
+    .manual-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-weight: 800; font-size: 16px; letter-spacing: -.02em; }
+    .manual-brand img { width: 28px; height: 28px; }
     .manual-brand span span { color: var(--accent); }
-    .back-links { display: flex; gap: 18px; font-size: 14px; font-weight: 600; }
+    .back-links { display: flex; align-items: center; gap: 16px; font-size: 13.5px; font-weight: 600; }
+    .icon-btn { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; transition: color .2s, border-color .2s; }
+    .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .toc { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 14px; }
+    .toc a { padding: 6px 13px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--card); font-size: 12.5px; font-weight: 600; transition: color .2s, border-color .2s; }
+    .toc a:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ---------- Conteúdo ---------- */
+    .wrap { width: min(860px, calc(100% - 48px)); margin: 0 auto; }
+    .content { padding: 48px 0 80px; }
     h1 { font-size: clamp(30px, 4.5vw, 42px); line-height: 1.1; margin: 0 0 10px; letter-spacing: -.03em; }
-    .intro { color: var(--muted); max-width: 620px; margin: 0 0 36px; }
-    .toc { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 44px; }
-    .toc a { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); text-decoration: none; font-size: 13px; font-weight: 600; }
-    .toc a:hover { border-color: var(--accent); }
+    .intro { color: var(--muted); max-width: 620px; margin: 0 0 40px; font-size: 17px; }
     section.step { margin-bottom: 44px; }
     .step-n { display: inline-flex; align-items: center; gap: 10px; font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
     .step-n b { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: var(--accent-soft); }
@@ -36,33 +113,51 @@ $pageTitle = 'SeederLinux Lite | Manual de uso';
     p { margin: 0 0 14px; }
     ul, ol { margin: 0 0 14px; padding-left: 22px; }
     li { margin-bottom: 6px; }
-    .card { border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 22px 26px; margin: 16px 0; }
-    code { font-family: var(--mono); font-size: .9em; background: var(--accent-soft); padding: 2px 6px; border-radius: 6px; }
+    .card { border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--card); padding: 22px 26px; margin: 16px 0; }
+    code { font-family: var(--mono); font-size: .9em; background: var(--accent-soft); color: var(--accent-strong); padding: 2px 6px; border-radius: 6px; }
     pre { background: #0d1b2e; color: #d7e4f0; border-radius: 12px; padding: 16px 20px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.8; }
     pre b { color: #75e6d0; }
     .note { border-left: 3px solid var(--accent); padding: 10px 16px; background: var(--accent-soft); border-radius: 0 10px 10px 0; font-size: 14.5px; }
-    .manual-footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+    .manual-footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+
+    @media (max-width: 620px) {
+      .toc { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 12px; scrollbar-width: thin; }
+      .toc a { white-space: nowrap; }
+      .back-links a:first-child { display: none; }
+    }
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <div class="manual-top">
-      <a class="manual-brand" href="/"><img src="/assets/images/seederlinux-logo.png" alt=""><span>Seeder<span>Linux</span> Lite — Manual</a>
-      <div class="back-links"><a href="/">← Voltar ao início</a><a href="/login.html">Acessar o painel ↗</a></div>
+<body class="theme-<?= htmlspecialchars($theme, ENT_QUOTES, 'UTF-8') ?>">
+  <header class="manual-header">
+    <div class="wrap">
+      <div class="manual-top">
+        <a class="manual-brand" href="/"><img src="/assets/images/seederlinux-logo.png" alt=""><span>Seeder<span>Linux</span> Lite — Manual</a>
+        <div class="back-links">
+          <a href="/">← Voltar ao início</a>
+          <a href="/login.html">Acessar o painel ↗</a>
+          <?php if ($hasToggle): ?>
+          <button class="icon-btn" type="button" onclick="toggleTheme()" aria-label="Alternar tema claro/escuro" title="Alternar tema">
+            <span class="icon-moon" aria-hidden="true">☾</span>
+            <span class="icon-sun hidden" aria-hidden="true">☀</span>
+          </button>
+          <?php endif; ?>
+        </div>
+      </div>
+      <nav class="toc" aria-label="Índice">
+        <a href="#visao-geral">1. Visão geral</a>
+        <a href="#primeiros-passos">2. Primeiros passos</a>
+        <a href="#organizacoes">3. Organizações e variáveis</a>
+        <a href="#gerando-bundle">4. Gerando um bundle</a>
+        <a href="#executando">5. Executando na estação</a>
+        <a href="#agente">6. Agente de check-in</a>
+        <a href="#duvidas">7. Dúvidas e suporte</a>
+      </nav>
     </div>
+  </header>
 
+  <div class="wrap content">
     <h1>Manual de uso</h1>
     <p class="intro">Como provisionar estações Linux de forma padronizada com o SeederLinux Lite: configure a organização, gere o bundle e execute na estação.</p>
-
-    <nav class="toc" aria-label="Índice">
-      <a href="#visao-geral">1. Visão geral</a>
-      <a href="#primeiros-passos">2. Primeiros passos</a>
-      <a href="#organizacoes">3. Organizações e variáveis</a>
-      <a href="#gerando-bundle">4. Gerando um bundle</a>
-      <a href="#executando">5. Executando na estação</a>
-      <a href="#agente">6. Agente de check-in</a>
-      <a href="#duvidas">7. Dúvidas e suporte</a>
-    </nav>
 
     <section class="step" id="visao-geral">
       <span class="step-n"><b>1</b> Visão geral</span>
@@ -128,7 +223,7 @@ INFO  Organizacao: SUA_OM
 INFO  Scripts incluidos: 22
 OK    Variaveis aplicadas
 OK    Provisionamento concluido</code></pre>
-        <p class="note">Execute como root (<code>sudo</code>) e confirme o log final antes de liberar a estação para o usuário.</p>
+        <p class="note">Execute como root (<code>sudo</code>) e confira o log final antes de liberar a estação para o usuário.</p>
       </div>
     </section>
 
@@ -162,5 +257,24 @@ OK    Provisionamento concluido</code></pre>
       <span><a href="/">Página inicial</a> · <a href="/login.html">Painel</a></span>
     </div>
   </div>
+
+  <?php if ($hasToggle): ?>
+  <script>
+    function updateToggleIcon() {
+      var light = document.documentElement.getAttribute('data-theme') === 'light';
+      var moon = document.querySelector('.icon-moon'), sun = document.querySelector('.icon-sun');
+      if (!moon || !sun) return;
+      moon.classList.toggle('hidden', light);
+      sun.classList.toggle('hidden', !light);
+    }
+    function toggleTheme() {
+      var next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('seederlinux-theme', next);
+      updateToggleIcon();
+    }
+    updateToggleIcon();
+  </script>
+  <?php endif; ?>
 </body>
 </html>
