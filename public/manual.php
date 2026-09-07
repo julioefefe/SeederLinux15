@@ -205,7 +205,7 @@ $hasToggle = in_array($theme, ['modern', 'solar'], true);
       <div class="card">
         <ol>
           <li>Em <strong>Bundles</strong>, selecione a organização de destino.</li>
-          <li>Escolha os módulos (os 22 scripts Core: DNS, pacotes, domínio AD, navegador, inventário, sessões, proxy…) na ordem oficial.</li>
+          <li>Escolha os módulos (os 23 scripts Core: DNS, pacotes, domínio AD, navegador, inventário, sessões, proxy, sincronização periódica…) na ordem oficial.</li>
           <li>Confira as versões, gere o bundle e, se desejar, marque-o como <em>público</em> para download pela página inicial.</li>
         </ol>
         <p>O bundle sai com os <code>placeholders</code> já substituídos pelos valores das variáveis da OM e com execução não interativa.</p>
